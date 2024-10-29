@@ -885,7 +885,7 @@ else
         {
             foreach (var variable in category.FunctionalVariables)
             {
-                if (variable.Metrics.Count == 0)
+                if (variable.Metrics.Count == 0 || variable.IsSelected == false)
                 {
                     continue;
                 }
@@ -943,7 +943,7 @@ else
         {
             foreach (var variable in category.FunctionalVariables)
             {
-                if (variable.Metrics.Count == 0)
+                if (variable.Metrics.Count == 0 || variable.IsSelected == false)
                 {
                     continue;
                 }
@@ -1001,7 +1001,7 @@ else
         {
             foreach (var variable in category.FunctionalVariables)
             {
-                if (variable.Metrics.Count == 0)
+                if (variable.Metrics.Count == 0 || variable.IsSelected == false)
                 {
                     continue;
                 }
