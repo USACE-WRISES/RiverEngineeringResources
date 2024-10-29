@@ -438,7 +438,7 @@ else
                     </MudGrid>
 
                     <MudText Typo="Typo.h6">Edit Score for @selectedMetric?.MetricName</MudText>
-                    <MudNumericField @bind-Value="selectedMetric.Score" Label="Score" Min="0.0" Max="1.0" Variant="Variant.Outlined" OnKeyDown="@(e => HandleEnterKey(e))" @ref="scoreInput" Style="margin-top:20px;" />
+                    <MudNumericField @bind-Value="selectedMetric.Score" Label="Score" Min="0.0" Max="1.0" Variant="Variant.Outlined" @ref="scoreInput" Style="margin-top:20px;" /> @* OnKeyDown="@(e => HandleEnterKey(e))" *@
                 </div>
             </MudContainer>
         </DialogContent>
