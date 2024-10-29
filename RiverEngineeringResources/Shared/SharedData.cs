@@ -14,6 +14,14 @@ namespace RiverEngineeringResources
         public string csvAssessmentContent;
         public string assessmentErrorMessage;
 
+        public List<MyStreamModelFunction>? MyStreamModelFunctionList = new List<MyStreamModelFunction>();
+        public string csvStreamModelFunctionContent;
+        public string streamModelFunctionErrorMessage;
+
+        public List<MyToolboxMetric>? MyToolboxMetricList = new List<MyToolboxMetric>();
+        public string csvToolboxMetricContent;
+        public string toolboxMetricErrorMessage;
+
         public bool EngineeringPageSelected { get; private set; }
         public bool Resources2PageSelected { get; private set; }
         public bool AssessmentPageSelected { get; private set; }

@@ -15,5 +15,6 @@ builder.Services.AddMudServices();
 
 builder.Services.AddSingleton<ClipboardService>();
 builder.Services.AddSingleton<SharedData>();
+builder.Services.AddSingleton<SharedFunctions>();
 
 await builder.Build().RunAsync();

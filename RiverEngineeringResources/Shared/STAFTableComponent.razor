@@ -1,15 +1,43 @@
 ﻿@using MudBlazor
 @using System.Collections.Generic
+@using RiverEngineeringResources.Shared
+@using CsvHelper
+@using CsvHelper.Configuration
+@using System.Globalization
+@using System.IO
+@using System.Net.Http.Json
+@using System.Text.Json
+@using System.IO;
+@using System.Globalization;
+@using System.Text
+@inject SharedData SharedData
+@inject SharedFunctions SharedFunctions
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
 
 <style>
     .mud-table-container td, .mud-table-container th {
         border-block-color: black;
     }
 
+    .header-font-size {
+        font-size: medium;
+    }
+
     .nonclickabletext {
         border-color: black;
         text-decoration: none;
-        font-size: smaller;
+        font-size: medium;
+        color: black;
+        margin: -4px; /* Remove margins */
+        padding: -4px; /* Remove paddings */
+    }
+
+    .nonclickabletextsmall {
+        border-color: black;
+        text-decoration: none;
+        font-size: small;
         color: black;
         margin: -4px; /* Remove margins */
         padding: -4px; /* Remove paddings */
@@ -19,7 +47,7 @@
         border-color: black;
         cursor: pointer;
         text-decoration: none;
-        font-size: smaller;
+        font-size: medium;
         color: black;
         margin: -4px; /* Remove margins */
         padding: -4px; /* Remove paddings */
@@ -40,241 +68,441 @@
     }
 
     .subindex-container {
-        margin-top: 10px;
-        height: 1.5em;
     }
 
+    .vh100 {
+        height: 100vh; /*from bootstrap*/
+    }
+
+    .mud-table.fullheight {
+        display: flex;
+        flex: 1 1 auto;
+        overflow: auto;
+    }
+
+        .mud-table.fullheight > .mud-table-container {
+            min-height: 0px;
+            flex: 1 1 auto;
+        }
 </style>
 
-<MudTable Items="@(GetTableItems())" Dense="true" Hover="true" Bordered="true" Striped="true" RowStyleFunc="RowStyleFunc" Style="width:100%;">
-    <HeaderContent>
-        <MudTh>Functional Category</MudTh>
-        <MudTh>Functional Variable</MudTh>
-        <MudTh>Metrics</MudTh>
-        @* <MudTh>Performance Criteria</MudTh> *@
-        <MudTh Style="text-align:center">Metric Score (0-1.0)</MudTh>
-        <MudTh Style="text-align:center">Variable Score (0-1.0)</MudTh>
-        <MudTh Style="text-align:center">Physical</MudTh>
-        <MudTh Style="text-align:center">Chemical</MudTh>
-        <MudTh Style="text-align:center">Biological</MudTh>
-    </HeaderContent>
-    <RowTemplate>
 
-        @if (IsFirstVariableRow(@context.Category, @context.Variable) && IsFirstMetricRow(@context.Variable, @context.Metric))
-        {
-            <MudTd Style="border-color:black;" DataLabel="Functional Category" RowSpan="@(GetRowSpanForCategory(@context.Category))">
-                <MudText Class="clickabletext" @onclick="@(() => OnEditVariableClick(@context.Variable))">@context.Category.FunctionalCategory</MudText>
+
+@if (isDataLoaded)
+{
+    <MudStack Class="pb-6" Spacing="0" Style="width:100%;">
+
+        <MudPaper Elevation="0" Class="d-flex flex-row justify-center relative align-end">
+            <MudPaper Elevation="0" Style="position:absolute">
+                <MudTextField @bind-Value="streamModelName" Label="Model Name" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px;" />
+            </MudPaper>
+
+            <MudPaper Class="my-0" Elevation="0" Style="margin-left:auto;">
+                <MudMenu Label="Export" AnchorOrigin="Origin.BottomLeft" Dense="true" FullWidth="true" TransformOrigin="Origin.TopLeft" Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small" Style="margin-right: 8px;">
+                    <MudMenuItem @onclick="ExportXlsx">
+                        Excel
+                    </MudMenuItem>
+                    <MudMenuItem @onclick="ExportData">
+                        Csv
+                    </MudMenuItem>
+                </MudMenu>
+                <MudMenu Label="Import" AnchorOrigin="Origin.BottomLeft" Dense="true" FullWidth="true" TransformOrigin="Origin.TopLeft" Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small">
+                    <MudMenuItem @onclick="@OnImportClick">
+                        Csv
+                    </MudMenuItem>
+                </MudMenu>
+                @*                 <MudButton OnClick="ExportData" Color="Color.Default" Variant="Variant.Outlined" Style="margin-right: 8px;" IconSize="Size.Small" Size="Size.Small">
+            Export
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small" OnClick="@OnImportClick">
+            Import
+            </MudButton>
+            <MudButton OnClick="ExportXlsx" Color="Color.Default" Variant="Variant.Outlined" Style="margin-left: 8px;" IconSize="Size.Small" Size="Size.Small">
+            Excel
+            </MudButton> *@
+                <InputFile OnChange="HandleFileUpload" id="fileUploadInput" hidden="true" @ref="importFileInputRef" />
+            </MudPaper>
+        </MudPaper>
+
+
+        <MudTable Items="@(GetTableItems())" Dense="true" Hover="true" Bordered="true" Striped="true" RowStyleFunc="RowStyleFunc" Style="width:100%;">
+            <HeaderContent>
+                <MudTh Class="header-font-size" Style="vertical-align:bottom">Functional Category</MudTh>
+                <MudTh Class="header-font-size" Style="vertical-align:bottom">Functional Variable</MudTh>
+                <MudTh Class="header-font-size" Style="vertical-align:bottom">Metrics</MudTh>
+                @* <MudTh>Performance Criteria</MudTh> *@
+                <MudTh Class="header-font-size" Style="text-align:center; vertical-align:bottom">
+                    Metric Score<br />(0-1.0)
+                </MudTh>
+                <MudTh Class="header-font-size" Style="text-align:center; vertical-align:bottom">Variable Score<br />(0-1.0)</MudTh>
+                <MudTh Class="header-font-size" Style="text-align:center; vertical-align:bottom">Physical</MudTh>
+                <MudTh Class="header-font-size" Style="text-align:center; vertical-align:bottom">Chemical</MudTh>
+                <MudTh Class="header-font-size" Style="text-align:center; vertical-align:bottom">Biological</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+
+                @if (IsFirstVariableRow(@context.Category, @context.Variable) && IsFirstMetricRow(@context.Variable, @context.Metric))
+                {
+                    <MudTd Style="border-color:black;" DataLabel="Functional Category" RowSpan="@(GetRowSpanForCategory(@context.Category))">
+                        <MudText Class="clickabletext" @onclick="@(() => OnEditVariableClick(@context.Variable))">@context.Category.FunctionalCategory</MudText>
+                        </MudTd>
+                }
+                @if (IsFirstMetricRow(@context.Variable, @context.Metric))
+                {
+                    <MudTd Style="@(context.Variable.IsSelected ? "border-color:black;" : "border-color:black; background-color:lightgray;")" DataLabel="Functional Variable" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
+                        <MudStack Row="true" AlignItems="AlignItems.Center">
+                            <MudCheckBox T="bool" DisableRipple="true" Dense="true" Size="Size.Small" @bind-Checked="@context.Variable.IsSelected" Style="margin-right: 8px;" />
+                            <MudText Class="clickabletext" @onclick="@(() => OnEditMetricClick(@context.Variable))">@GetFormattedVariableType(@context.Variable.VariableType)</MudText>
+                            </MudStack>
+                        </MudTd>
+                }
+                <MudTd Style="@(context.Variable.IsSelected ? "border-color:black;" : "border-color:black; background-color:lightgray;")" Class="nonclickabletext" DataLabel="Metrics">@context.Metric.MetricName</MudTd>
+                    @* <MudTd Style="border-color:black" Class="nonclickabletext" DataLabel="Performance Criteria">@context.Metric.PerformanceStandard</MudTd> *@
+                    <MudTd DataLabel="Metric Score" Style="@(context.Variable.IsSelected ? "border-color:black;" : "border-color:black; background-color:lightgray;")">
+                        @if (@context.Variable.Metrics.Count > 0)
+                    {
+                        <MudText Class="clickabletext" Style="border-color: black; border-inline-color:black; text-align:center;" @onclick="@(() => OnEditScoreClick(@context.Metric))">@context.Metric.Score</MudText>
+                    }
+
                 </MudTd>
-        }
-        @if (IsFirstMetricRow(@context.Variable, @context.Metric))
-        {
-            <MudTd Style="border-color:black;" DataLabel="Functional Variable" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
-                <MudText Class="clickabletext" @onclick="@(() => OnEditMetricClick(@context.Variable))">@context.Variable.VariableType</MudText>
+
+                @if (IsFirstMetricRow(@context.Variable, @context.Metric))
+                {
+                    <MudTd Class="nonclickabletext" Style="@(context.Variable.IsSelected ? "border-color:black; text-align:center;" : "border-color:black; background-color:lightgray; text-align:center;")" DataLabel="Variable Score" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
+                        @if (@context.Variable.Metrics.Count > 0)
+                        {
+                            @(CalculateVariableScore(@context.Variable))
+                        }
+
+                    </MudTd>
+
+                    <MudTd Class="nonclickabletext" Style="@(context.Variable.IsSelected ? "border-color:black; text-align:center;" : "border-color:black; background-color:lightgray; text-align:center;")" DataLabel="Physical" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
+                        @(GetScoreText(CalculatePhysicalScore(@context.Variable), GetFunctionalVariableOption(@context.Variable.VariableType).Physical, @context.Variable.Metrics.Count))
+                    </MudTd>
+
+                    <MudTd Class="nonclickabletext" Style="@(context.Variable.IsSelected ? "border-color:black; text-align:center;" : "border-color:black; background-color:lightgray; text-align:center;")" DataLabel="Chemical" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
+                        @(GetScoreText(CalculateChemicalScore(@context.Variable), GetFunctionalVariableOption(@context.Variable.VariableType).Chemical, @context.Variable.Metrics.Count))
+                    </MudTd>
+
+                    <MudTd Class="nonclickabletext" Style="@(context.Variable.IsSelected ? "border-color:black; text-align:center;" : "border-color:black; background-color:lightgray; text-align:center;")" DataLabel="Biological" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
+                        @(GetScoreText(CalculateBiologicalScore(@context.Variable), GetFunctionalVariableOption(@context.Variable.VariableType).Biological, @context.Variable.Metrics.Count))
+                    </MudTd>
+                }
+
+                @* Dummy column because if it's removed then there's weird formatting on second row of metrics (missing border and slightly shifted text) *@
+                <MudTd Style="display:none; border-color:black; text-align:center;">
                 </MudTd>
-        }
-        <MudTd Style="border-color:black;" Class="nonclickabletext" DataLabel="Metrics">@context.Metric.MetricAssessment</MudTd>
-            @* <MudTd Style="border-color:black" Class="nonclickabletext" DataLabel="Performance Criteria">@context.Metric.PerformanceStandard</MudTd> *@
-            <MudTd DataLabel="Score" Style="border-color:black">
-                @if (@context.Variable.Metrics.Count > 0)
-            {
-                <MudText Class="clickabletext" Style="text-align:center;" @onclick="@(() => OnEditScoreClick(@context.Metric))">@context.Metric.Score</MudText>
-            }
 
-        </MudTd>
+            </RowTemplate>
 
-        @if (IsFirstMetricRow(@context.Variable, @context.Metric))
-        {
-            <MudTd Class="nonclickabletext" Style="border-color:black; text-align:center;" DataLabel="Variable Score" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
-                @if (@context.Variable.Metrics.Count > 0)
-                {
-                    @(CalculateVariableScore(@context.Variable))
-                }
+            <FooterContent>
+                <!-- Combined Footer Content -->
+                <MudTd ColSpan="5">
+                    <MudText Class="nonclickabletext" Style="text-align:right; vertical-align:middle;">
+                        Weighted Score Total
+                        <div>Direct Effect</div>
+                        <div>Indirect Effect</div>
+                        <div>Max Score</div>
+                        <div>Condition Sub-Index</div>
+                        <div>Ecosystem Condition Index</div>
+                    </MudText>
+                </MudTd>
+                <MudTd Style="text-align:center; border-color:black; vertical-align:top;">
+                    <div class="subindex-container">
+                        <MudText>@GetSubIndexScore("Physical", GetPhysicalSubIndex(false, true))</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            <MudText>@GetPhysicalSubIndex(false, false, false, true)</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            <MudText>@GetPhysicalSubIndex(false, false, false, false, true)</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            <MudText>@GetPhysicalSubIndex(false, false, true, false, false)</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            @if (@GetSubIndexScore("Physical", GetPhysicalSubIndex()) == "No Scores")
+                        {
+                            <MudText>No Scores</MudText>
+                        }
+                        else
+                        {
+                            <MudText>@GetSubIndexScore("Physical", GetPhysicalSubIndex())</MudText>
+                        }
+                    </div>
+                    <div class="subindex-container">
+                        <MudText Class="missingScore"> </MudText>
+                    </div>
+                </MudTd>
+                <MudTd Class="nonclickabletext" Style="text-align:center; border-color:black; vertical-align:middle;">
+                    <div class="subindex-container">
+                        <MudText>@GetSubIndexScore("Chemical", GetChemicalSubIndex(false, true))</MudText>
+                    </div>
+                    <div class="subindex-container">
+                            <MudText>@GetChemicalSubIndex(false, false, false, true)</MudText>
+                    </div>
+                    <div class="subindex-container">
+                            <MudText>@GetChemicalSubIndex(false, false, false, false, true)</MudText>
+                    </div>
+                    <div class="subindex-container">
+                            <MudText>@GetChemicalSubIndex(false, false, true, false, false)</MudText>
+                    </div>
+                    <div class="subindex-container">
+                            @if (@GetSubIndexScore("Chemical", GetChemicalSubIndex()) == "No Scores")
+                        {
+                            <MudText>No Scores</MudText>
+                        }
+                        else
+                        {
+                            <MudText>@GetSubIndexScore("Chemical", GetChemicalSubIndex())</MudText>
+                        }
+                    </div>
 
-            </MudTd>
-        }
-        <MudTd Class="nonclickabletext" Style="text-align:center; border-color:black;" DataLabel="Physical">
-            @if (@context.Variable.Metrics.Count > 0)
-            {
-                @(GetScoreText(CalculatePhysicalScore(@context.Variable), GetFunctionalVariableOption(@context.Variable.VariableType).Physical))
-            }
-        </MudTd>
-        <MudTd Class="nonclickabletext" Style="text-align:center; border-color:black;" DataLabel="Chemical">
-            @if (@context.Variable.Metrics.Count > 0)
-            {
-                @(GetScoreText(CalculateChemicalScore(@context.Variable), GetFunctionalVariableOption(@context.Variable.VariableType).Chemical))
-            }
-        </MudTd>
-        <MudTd Class="nonclickabletext" Style="text-align:center; border-color:black;" DataLabel="Biological">
-            @if (@context.Variable.Metrics.Count > 0)
-            {
-                @(GetScoreText(CalculateBiologicalScore(@context.Variable), GetFunctionalVariableOption(@context.Variable.VariableType).Biological))
-            }
-        </MudTd>
 
-    </RowTemplate>
+                    <div>
+                        @if (GetEcosystemConditionIndexOrMissing() == "Missing Sub-Indices")
+                        {
+                            <MudText>Missing Sub-Indices</MudText>
+                        }
+                        else
+                        {
+                            <MudText>@GetEcosystemConditionIndexOrMissing()</MudText>
+                        }
+                    </div>
+                </MudTd>
+                <MudTd Style="text-align:center; border-color:black; vertical-align:top;">
+                    <div class="subindex-container">
+                        <MudText>@GetSubIndexScore("Biological", GetBiologicalSubIndex(false, true))</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            <MudText>@GetBiologicalSubIndex(false, false, false, true)</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            <MudText>@GetBiologicalSubIndex(false, false, false, false, true)</MudText>
+                        </div>
+                        <div class="subindex-container">
+                            <MudText>@GetBiologicalSubIndex(false, false, true, false, false)</MudText>
+                        </div>
+                    <div class="subindex-container">
+                        @if (@GetSubIndexScore("Biological", GetBiologicalSubIndex()) == "No Scores")
+                        {
+                            <MudText>No Scores</MudText>
+                        }
+                        else
+                        {
+                            <MudText>@GetSubIndexScore("Biological", GetBiologicalSubIndex())</MudText>
+                        }
+                    </div>
 
-    <FooterContent>
-        <!-- Combined Footer Content -->
-        <MudTd ColSpan="5">
-            <MudText Class="nonclickabletext" Style="text-align:right;">
-                Condition Sub-indices
-                <div Style="margin-top: 10px; height: 1.5em;">Ecosystem Condition Index</div>
-            </MudText>
-        </MudTd>
-        <MudTd Style="text-align:center; border-color:black;">
-            <div class="subindex-container">
-                @if (@GetSubIndexScore("Physical", GetPhysicalSubIndex()) == "No Scores")
-                {
-                    <MudText Class="missingScore">No Scores</MudText>
-                }
-                else
-                {
-                    <MudText Class="nonclickabletext">@GetSubIndexScore("Physical", GetPhysicalSubIndex())</MudText>
-                }
+                    <div class="subindex-container">
+                        <MudText Class="missingScore"> </MudText>
+                    </div>
+                </MudTd>
+            </FooterContent>
 
-            </div>
-            <div class="subindex-container">
-                <MudText Class="missingScore"> </MudText>
-            </div>
-        </MudTd>
-        <MudTd Style="text-align:center; border-color:black;">
-            <div class="subindex-container">
-                @if (@GetSubIndexScore("Chemical", GetChemicalSubIndex()) == "No Scores")
-                {
-                    <MudText Class="missingScore">No Scores</MudText>
-                }
-                else
-                {
-                    <MudText Class="nonclickabletext">@GetSubIndexScore("Chemical", GetChemicalSubIndex())</MudText>
-                }
-            </div>
+        </MudTable>
 
-            <div class="subindex-container">
-                @if (GetEcosystemConditionIndexOrMissing() == "Missing Sub-Indices")
-                {
-                    <MudText Class="missingScore">Missing Sub-Indices</MudText>
-                }
-                else
-                {
-                    <MudText Class="nonclickabletext">@GetEcosystemConditionIndexOrMissing()</MudText>
-                }
-            </div>
-        </MudTd>
-        <MudTd Style="text-align:center; border-color:black;">
-            <div class="subindex-container">
-                @if (@GetSubIndexScore("Biological", GetBiologicalSubIndex()) == "No Scores")
-                {
-                    <MudText Class="missingScore">No Scores</MudText>
-                }
-                else
-                {
-                    <MudText Class="nonclickabletext">@GetSubIndexScore("Biological", GetBiologicalSubIndex())</MudText>
-                }
-            </div>
+    </MudStack>
 
-            <div class="subindex-container">
-                <MudText Class="missingScore"> </MudText>
-            </div>
-        </MudTd>
-    </FooterContent>
+}
+else
+{
+    <MudGrid Justify="Justify.Center">
+        <MudItem>
+            @* <MudProgressCircular Color="Color.Default" Indeterminate="true" /> *@
+            Loading...
+        </MudItem>
+    </MudGrid>
+}
 
-</MudTable>
 
-<MudDialog @bind-IsVisible="editVariableDialogVisible" Options=_maxWidth Class="dialog-colored">
+<MudDialog @bind-IsVisible="editVariableDialogVisible" Class="dialog-colored" Options="MudDialog1Options2">
 
     <DialogContent>
-        <MudText Typo="Typo.h6">@selectedCategoryItem?.FunctionalCategory</MudText>
-            <MudTable Items="filteredVariableOptions" Hover="true" Bordered="true" Striped="true" Dense="true">
-                <HeaderContent>
-                    <MudTh>Select</MudTh>
-                    <MudTh>Functional Variable</MudTh>
-                    <MudTh>Functional Statement</MudTh>
-                    <MudTh>Physical</MudTh>
-                    <MudTh>Chemical</MudTh>
-                    <MudTh>Biological</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Select">
-                        <MudCheckBox @bind-Checked="@context.IsSelected" />
-                    </MudTd>
-                    <MudTd DataLabel="Functional Variable">@context.FunctionalVariable</MudTd>
-                    <MudTd DataLabel="Functional Statement">@context.FunctionalStatement</MudTd>
-                    <MudTd DataLabel="Physical">@context.Physical</MudTd>
-                    <MudTd DataLabel="Chemical">@context.Chemical</MudTd>
-                    <MudTd DataLabel="Biological">@context.Biological</MudTd>
-                </RowTemplate>
-            </MudTable>
+        <MudStack Style="max-height:80vh">
+            <MudText Typo="Typo.h6">@selectedCategoryItem?.FunctionalCategory</MudText>
+                <MudPaper Elevation="0" Class="d-flex align-items-center justify-center p-1">
+                    <MudText Align="Align.Center">
+                        <MudLink OnClick="@(args => ToggleSelectAllVariables(filteredVariableSelectableOptionsForDialog,true))" Class="mr-2" Style="cursor:pointer;font-size:medium">Select All</MudLink> |
+                        <MudLink OnClick="@(args => ToggleSelectAllVariables(filteredVariableSelectableOptionsForDialog,false))" Class="ml-2" Style="cursor:pointer;font-size:medium">Unselect All</MudLink>
+                    </MudText>
+                </MudPaper>
+                <MudTable Class="fullheight" Items="filteredVariableSelectableOptionsForDialog" Hover="true" Bordered="true" Striped="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Select</MudTh>
+                        <MudTh>Functional Variable</MudTh>
+                        <MudTh>Functional Statement</MudTh>
+                        <MudTh>Physical</MudTh>
+                        <MudTh>Chemical</MudTh>
+                        <MudTh>Biological</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Select">
+                            <MudCheckBox T="bool" @bind-Checked="@context.IsSelected" />
+                        </MudTd>
+                        <MudTd DataLabel="Functional Variable">@context.FunctionalVariable</MudTd>
+                        <MudTd DataLabel="Functional Statement">@context.FunctionalStatement</MudTd>
+                        <MudTd DataLabel="Physical">@context.Physical</MudTd>
+                        <MudTd DataLabel="Chemical">@context.Chemical</MudTd>
+                        <MudTd DataLabel="Biological">@context.Biological</MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudStack Row="true" Justify="Justify.FlexEnd">
+                    <MudButton OnClick="@SaveSelectedVariables" Color="Color.Primary">Save</MudButton>
+                    <MudButton OnClick="@CloseEditVariableDialog" Color="Color.Secondary">Cancel</MudButton>
+                </MudStack>
+            </MudStack>
+
         </DialogContent>
         <DialogActions>
-            <MudButton OnClick="@SaveSelectedVariables" Color="Color.Primary">Save</MudButton>
-            <MudButton OnClick="@CloseEditVariableDialog" Color="Color.Secondary">Cancel</MudButton>
+
         </DialogActions>
     </MudDialog>
 
-    <MudDialog @bind-IsVisible="editMetricDialogVisible">
-
+    <MudDialog @bind-IsVisible="editMetricDialogVisible" Options="MudDialog1Options2">
         <DialogContent>
-            <MudText Typo="Typo.h6">Select Metrics for @selectedVariable?.VariableType</MudText>
-            <MudTable Items="filteredMetricOptions" Hover="true" Bordered="true" Striped="true" Dense="true">
-                <HeaderContent>
-                    <MudTh>Select</MudTh>
-                    <MudTh>Metric ID</MudTh>
-                    <MudTh>Metric/Assessment</MudTh>
-                    <MudTh>Performance Standard</MudTh>
-                    <MudTh>Method</MudTh>
-                    <MudTh>Tier</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Select">
-                        <MudCheckBox @bind-Checked="@context.IsSelected" />
-                    </MudTd>
-                    <MudTd DataLabel="Metric ID">@context.MetricId</MudTd>
-                    <MudTd DataLabel="Metric/Assessment">@context.MetricAssessment</MudTd>
-                    <MudTd DataLabel="Performance Standard">@context.PerformanceStandard</MudTd>
-                    <MudTd DataLabel="Method">@context.Method</MudTd>
-                    <MudTd DataLabel="Tier">@context.Tier</MudTd>
-                </RowTemplate>
-            </MudTable>
+            <MudStack Style="max-height:80vh">
+                <!-- this is needed to avoid scroll bar on dialog -->
+                <MudText Typo="Typo.h6">Select Metrics for @selectedVariable?.VariableType</MudText>
+                <MudPaper Elevation="0" Class="d-flex align-items-center justify-center p-1">
+                    <MudText Align="Align.Center">
+                        <MudLink OnClick="@(args => ToggleSelectAllMetrics(filteredMetricOptionsForDialog,true))" Class="mr-2" Style="cursor:pointer;font-size:medium">Select All</MudLink> |
+                        <MudLink OnClick="@(args => ToggleSelectAllMetrics(filteredMetricOptionsForDialog,false))" Class="ml-2" Style="cursor:pointer;font-size:medium">Unselect All</MudLink>
+                    </MudText>
+                </MudPaper>
+                <MudTable Class="fullheight" Items="filteredMetricOptionsForDialog" Hover="true" Bordered="true" Striped="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Select</MudTh>
+                        <MudTh>Metric ID</MudTh>
+                        <MudTh>Metric Name</MudTh>
+                        <MudTh>Performance Standard</MudTh>
+                        <MudTh>Method</MudTh>
+                        <MudTh>Tier</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Select">
+                            <MudCheckBox T="bool" @bind-Checked="@context.IsSelected" />
+                        </MudTd>
+                        <MudTd DataLabel="Metric ID">@context.MetricShortName</MudTd>
+                        <MudTd DataLabel="Metric Name">@context.MetricName</MudTd>
+                        <MudTd DataLabel="Performance Standard">@context.PerformanceStandard</MudTd>
+                        <MudTd DataLabel="Method">@context.Method</MudTd>
+                        <MudTd DataLabel="Tier">@context.Tier</MudTd>
+                    </RowTemplate>
+                </MudTable>
+                <MudStack Row="true" Justify="Justify.FlexEnd">
+                    @*                     <MudButton OnClick="@(() => UnselectAllMetrics())" Color="Color.Default" Style="margin-right: auto;">Unselect All</MudButton> *@
+                    <MudButton OnClick="@SaveSelectedMetrics" Color="Color.Primary">Save</MudButton>
+                    <MudButton OnClick="@CloseEditMetricDialog" Color="Color.Secondary">Cancel</MudButton>
+                </MudStack>
+            </MudStack>
+
+
         </DialogContent>
         <DialogActions>
-            <MudButton OnClick="@SaveSelectedMetrics" Color="Color.Primary">Save</MudButton>
-            <MudButton OnClick="@CloseEditMetricDialog" Color="Color.Secondary">Cancel</MudButton>
+
         </DialogActions>
     </MudDialog>
 
-    <MudDialog @bind-IsVisible="editScoreDialogVisible">
+
+    <MudDialog @bind-IsVisible="editScoreDialogVisible" Options="MudDialog1Options">
         <DialogContent>
-            <MudText Typo="Typo.h6">Edit Score for @selectedMetric?.MetricAssessment</MudText>
-            <MudTable Items="lookupTableItems" Hover="true" Bordered="true" Striped="true" Dense="true">
-                <HeaderContent>
-                    <MudTh>X (Measurement Value)</MudTh>
-                    <MudTh>Y (Metric Score)</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="X">
-                        <MudNumericField @bind-Value="@context.XValue" Variant="Variant.Outlined" />
-                    </MudTd>
-                    <MudTd DataLabel="Y">
-                        <MudNumericField @bind-Value="@context.YValue" Variant="Variant.Outlined" />
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
-            <MudChart ChartType="MudBlazor.ChartType.Line" ChartOptions="chartOptions" XAxisLabels="@xAxisLabels" ChartSeries="chartData" Style="height:300px; width:400px; margin-left:20px;" />
-            <MudNumericField @bind-Value="selectedMetric.Score" Label="Score" Min="0.0" Max="1.0" Variant="Variant.Outlined" OnKeyDown="@(e => HandleEnterKey(e))" @ref="scoreInput" Style="margin-top:20px;" />
+            <MudContainer Style="max-width:90%; height: 80vh;">
+                <div>
+                    <MudText Typo="Typo.h6">Edit Performance Criteria @selectedMetric?.MetricName</MudText>
+                    <MudGrid>
+                        <MudItem xs="3">
+                            <MudTable Items="lookupTableItems" Hover="true" Bordered="true" Striped="true" Dense="true">
+                                <HeaderContent>
+                                    <MudTh>X (Measurement Value)</MudTh>
+                                    <MudTh>Y (Metric Score)</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="X">
+                                        <MudNumericField T="double" HideSpinButtons="true" Value="@context.XValue" ValueChanged="@(v => { context.XValue = v; OnLookupTableItemChanged(); })" Variant="Variant.Text" />
+                                    </MudTd>
+                                    <MudTd DataLabel="Y">
+                                        <MudNumericField T="double" HideSpinButtons="true" Value="@context.YValue" ValueChanged="@(v => { context.YValue = v; OnLookupTableItemChanged(); })" Variant="Variant.Text" />
+                                    </MudTd>
+                                    <MudTd>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="@(() => RemoveRow(context))" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                            <MudButton OnClick="AddRow" Color="Color.Primary" Style="margin-top:10px;">Add Row</MudButton>
+                        </MudItem>
+                        <MudItem xs="9">
+                            <MudChart ChartType="MudBlazor.ChartType.Line" ChartOptions="chartOptions" XAxisLabels="@xAxisLabels" ChartSeries="chartData" YAxisTitle="Metric Index Score" XAxisTitle="Measurement Value" Style="width:100%; height:100%;" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudText Typo="Typo.h6">Edit Score for @selectedMetric?.MetricName</MudText>
+                    <MudNumericField @bind-Value="selectedMetric.Score" Label="Score" Min="0.0" Max="1.0" Variant="Variant.Outlined" OnKeyDown="@(e => HandleEnterKey(e))" @ref="scoreInput" Style="margin-top:20px;" />
+                </div>
+            </MudContainer>
         </DialogContent>
+
         <DialogActions>
             <MudButton OnClick="@SaveScore" Color="Color.Primary">Save</MudButton>
             <MudButton OnClick="@CancelEditScore" Color="Color.Secondary">Cancel</MudButton>
         </DialogActions>
+
     </MudDialog>
 
+
     @code {
+    private string streamModelName = ""; // Initial name for the stream model
+    private InputFile importFileInputRef;
     private MudNumericField<double> scoreInput;
     private bool firstRender = true;
     private double? originalScore;
     private string[] xAxisLabels;
+    private DialogOptions MudDialog1Options = new DialogOptions { MaxWidth = MaxWidth.ExtraExtraLarge, FullWidth = true }; /* MaxWidth = MaxWidth.ExtraLarge, FullWidth = true */
 
+    private DialogOptions MudDialog1Options2 = new DialogOptions { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true }; /* MaxWidth = MaxWidth.ExtraLarge, FullWidth = true */
 
+    private string GetFormattedVariableType(FunctionalVariableType variableType)
+    {
+        return string.Concat(variableType.ToString().Select((x, i) => i > 0 && char.IsUpper(x) ? " " + x : x.ToString()));
+    }
+
+    private void UnselectAllMetrics()
+    {
+        foreach (var metric in filteredMetricOptionsForDialog)
+        {
+            metric.IsSelected = false;
+        }
+    }
+
+    private void ToggleSelectAllVariables(List<FunctionalVariableOption> listFVO, bool SelectAll)
+    {
+
+        foreach (var variableOption in listFVO)
+        {
+            variableOption.IsSelected = SelectAll; // Toggle, it's opposite
+        }
+    }
+    private void ToggleSelectAllMetrics(List<MetricOption> listFMO, bool SelectAll)
+    {
+
+        foreach (var metricOption in listFMO)
+        {
+            metricOption.IsSelected = SelectAll; // Toggle, it's opposite
+        }
+    }
+
+    private void AddRow()
+    {
+        lookupTableItems.Add(new LookupTableItem { XValue = 0, YValue = 0 });
+        OnLookupTableItemChanged();
+    }
+
+    private void RemoveRow(LookupTableItem item)
+    {
+        lookupTableItems.Remove(item);
+        OnLookupTableItemChanged();
+    }
     private async void OnEditScoreDialogAfterRender()
     {
         if (scoreInput != null)
@@ -308,19 +536,18 @@
     private List<LookupTableItem> lookupTableItems = new List<LookupTableItem>();
     private List<MudBlazor.ChartSeries> chartData;
     private MudBlazor.ChartOptions chartOptions = new MudBlazor.ChartOptions
-        {
-            // XAxisTicks = true,
-            // YAxisTicks = true,
-            // XAxisLabels = new List<string>()
-        };
+    {
+        // XAxisTicks = true,
+        // YAxisTicks = true,
+        // XAxisLabels = new List<string>()
+    };
 
     private void InitializeLookupTableItems()
     {
         lookupTableItems = new List<LookupTableItem>
         {
             new LookupTableItem { XValue = 0, YValue = 0 },
-            new LookupTableItem { XValue = 1, YValue = 0.5 },
-            new LookupTableItem { XValue = 2, YValue = 1.0 }
+            new LookupTableItem { XValue = 1, YValue = 1.0 }
         };
     }
 
@@ -339,6 +566,11 @@
         };
 
         xAxisLabels = lookupTableItems.Select(item => item.XValue.ToString()).ToList().ToArray();
+
+        chartOptions.YAxisTicks = 1;
+        chartOptions.MaxNumYAxisTicks = 5;
+
+        StateHasChanged();
         // chartOptions.XAxisLabels = lookupTableItems.Select(item => item.XValue.ToString()).ToList();
     }
 
@@ -349,7 +581,7 @@
             originalScore = selectedMetric.Score;
 
             // Initialize lookup table items and generate chart data.
-            InitializeLookupTableItems();
+            lookupTableItems = selectedMetric.PerformanceStandardLookupTable;
             GenerateChartData();
         }
     }
@@ -363,8 +595,31 @@
         public double YValue { get; set; }
     }
 
+    // private string RowStyleFunc(TableItem arg1, int index)
+    // {
+    //     switch (arg1.Category.FunctionalCategory)
+    //     {
+    //         case FunctionalCategory.Hydrology:
+    //             return "background-color: #D9E1F2";
+    //         case FunctionalCategory.Hydraulics:
+    //             return "background-color: #B4C6E7";
+    //         case FunctionalCategory.Geomorphology:
+    //             return "background-color: #FCE4D6";
+    //         case FunctionalCategory.Physicochemical:
+    //             return "background-color: #FFF2CC";
+    //         case FunctionalCategory.Biology:
+    //             return "background-color: #E2EFDA";
+    //         default:
+    //             return "background-color:white";
+    //     }
+    // }
     private string RowStyleFunc(TableItem arg1, int index)
     {
+        // if (!arg1.Variable.IsSelected)
+        // {
+        //     return "background-color:gray";
+        // }
+
         switch (arg1.Category.FunctionalCategory)
         {
             case FunctionalCategory.Hydrology:
@@ -382,70 +637,47 @@
         }
     }
 
-    private readonly DialogOptions _maxWidth = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+    // private readonly DialogOptions _maxWidth = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
 
-    private List<FunctionalCategoryItem> functionalCategoryItems = new()
+    private List<FunctionalCategoryItem> functionalCategoryItems = new() { };
+    private void LoadFunctionalCategoryItems()
     {
-        new FunctionalCategoryItem
+        functionalCategoryItems = new List<FunctionalCategoryItem>();
+
+        foreach (var streamFunction in SharedData.MyStreamModelFunctionList)
         {
-            FunctionalCategory = FunctionalCategory.Hydrology,
-            FunctionalVariables = new List<FunctionalVariable>
+            var functionalCategory = Enum.TryParse<FunctionalCategory>(NormalizeEnumName(streamFunction.FunctionalCategory), true, out var parsedCategory)
+                ? parsedCategory
+                : FunctionalCategory.Hydrology; // Default to Hydrology if not found
+
+            var functionalVariable = new FunctionalVariable
+                {
+                    VariableType = Enum.TryParse<FunctionalVariableType>(NormalizeEnumName(streamFunction.FunctionalVariable), true, out var parsedVariable)
+                                                                                                                                        ? parsedVariable
+                                                                                                                                        : FunctionalVariableType.CatchmentHydrology, // Default to CatchmentHydrology if not found
+                    Metrics = new List<MetricOption>()
+                };
+
+            var existingCategory = functionalCategoryItems.FirstOrDefault(fc => fc.FunctionalCategory == functionalCategory);
+            if (existingCategory != null)
             {
-                new FunctionalVariable { VariableType = FunctionalVariableType.CatchmentHydrology },
-                new FunctionalVariable { VariableType = FunctionalVariableType.SurfaceWaterStorage },
-                new FunctionalVariable { VariableType = FunctionalVariableType.ReachInflow },
-                new FunctionalVariable { VariableType = FunctionalVariableType.FlowDuration },
-                new FunctionalVariable { VariableType = FunctionalVariableType.FlowAlteration }
+                existingCategory.FunctionalVariables.Add(functionalVariable);
             }
-        },
-        new FunctionalCategoryItem
-        {
-            FunctionalCategory = FunctionalCategory.Hydraulics,
-            FunctionalVariables = new List<FunctionalVariable>
+            else
             {
-                new FunctionalVariable { VariableType = FunctionalVariableType.LowFlowDynamics },
-                new FunctionalVariable { VariableType = FunctionalVariableType.BaseflowDynamics },
-                new FunctionalVariable { VariableType = FunctionalVariableType.HighFlowDynamics },
-                new FunctionalVariable { VariableType = FunctionalVariableType.FloodplainConnectivity },
-                new FunctionalVariable { VariableType = FunctionalVariableType.HyporheicConnectivity }
-            }
-        },
-        new FunctionalCategoryItem
-        {
-            FunctionalCategory = FunctionalCategory.Geomorphology,
-            FunctionalVariables = new List<FunctionalVariable>
-            {
-                new FunctionalVariable { VariableType = FunctionalVariableType.ChannelEvolution },
-                new FunctionalVariable { VariableType = FunctionalVariableType.LateralStability },
-                new FunctionalVariable { VariableType = FunctionalVariableType.PlanformChange },
-                new FunctionalVariable { VariableType = FunctionalVariableType.SedimentContinuity },
-                new FunctionalVariable { VariableType = FunctionalVariableType.LargeWood },
-                new FunctionalVariable { VariableType = FunctionalVariableType.BedComposition }
-            }
-        },
-        new FunctionalCategoryItem
-        {
-            FunctionalCategory = FunctionalCategory.Physicochemical,
-            FunctionalVariables = new List<FunctionalVariable>
-            {
-                new FunctionalVariable { VariableType = FunctionalVariableType.LightAndThermalRegime },
-                new FunctionalVariable { VariableType = FunctionalVariableType.CarbonProcessing },
-                new FunctionalVariable { VariableType = FunctionalVariableType.NutrientCycling },
-                new FunctionalVariable { VariableType = FunctionalVariableType.WaterAndSoilQuality }
-            }
-        },
-        new FunctionalCategoryItem
-        {
-            FunctionalCategory = FunctionalCategory.Biology,
-            FunctionalVariables = new List<FunctionalVariable>
-            {
-                new FunctionalVariable { VariableType = FunctionalVariableType.HabitatProvision },
-                new FunctionalVariable { VariableType = FunctionalVariableType.PopulationSupport },
-                new FunctionalVariable { VariableType = FunctionalVariableType.CommunityDynamics },
-                new FunctionalVariable { VariableType = FunctionalVariableType.WatershedConnectivity }
+                functionalCategoryItems.Add(new FunctionalCategoryItem
+                    {
+                        FunctionalCategory = functionalCategory,
+                        FunctionalVariables = new List<FunctionalVariable> { functionalVariable }
+                    });
             }
         }
-    };
+    }
+
+    private string NormalizeEnumName(string input)
+    {
+        return input.Replace(" ", "").ToLowerInvariant();
+    }
 
     private FunctionalCategoryItem selectedCategoryItem;
     private FunctionalVariable selectedVariable;
@@ -456,352 +688,55 @@
     private bool editMetricDialogVisible = false;
     private bool editScoreDialogVisible = false;
 
-    private List<MetricOption> filteredMetricOptions = new();
+    private List<MetricOption> filteredMetricOptionsForDialog = new();
 
-    private List<FunctionalVariableOption> filteredVariableOptions = new();
-    private List<FunctionalVariableOption> functionalVariableOptions = new()
-{
-    new FunctionalVariableOption
+    private List<FunctionalVariableOption> filteredVariableSelectableOptionsForDialog = new();
+    private List<FunctionalVariableOption> functionalVariableSelectableOptions = new() { };
+    private void LoadFunctionalVariableOptions()
     {
-        FunctionalCategory = FunctionalCategory.Hydrology,
-        FunctionalVariable = FunctionalVariableType.CatchmentHydrology,
-        FunctionalStatement = "Alters water quantity and quality via land uses.",
-        Physical = "D",
-        Chemical = "i",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydrology,
-        FunctionalVariable = FunctionalVariableType.SurfaceWaterStorage,
-        FunctionalStatement = "Attenuates upstream flows via natural and artificial features (e.g., wetlands).",
-        Physical = "D",
-        Chemical = "i",
-        Biological = ""
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydrology,
-        FunctionalVariable = FunctionalVariableType.ReachInflow,
-        FunctionalStatement = "Addresses localized inputs from tributaries, ditches, and pipes.",
-        Physical = "D",
-        Chemical = "i",
-        Biological = ""
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydrology,
-        FunctionalVariable = FunctionalVariableType.FlowDuration,
-        FunctionalStatement = "Integrates the range of 'typical' flows experienced by other processes.",
-        Physical = "D",
-        Chemical = "",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydrology,
-        FunctionalVariable = FunctionalVariableType.FlowAlteration,
-        FunctionalStatement = "Examines the degree to which upstream infrastructure or land uses have fundamentally altered flow regimes (e.g., hydropeaking, dams, withdrawals).",
-        Physical = "D",
-        Chemical = "i",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydraulics,
-        FunctionalVariable = FunctionalVariableType.LowFlowDynamics,
-        FunctionalStatement = "Ensures habitat availability and water quality during low water levels.",
-        Physical = "D",
-        Chemical = "i",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydraulics,
-        FunctionalVariable = FunctionalVariableType.BaseflowDynamics,
-        FunctionalStatement = "Indicates non-storm conditions experienced the majority of the time.",
-        Physical = "D",
-        Chemical = "i",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydraulics,
-        FunctionalVariable = FunctionalVariableType.HighFlowDynamics,
-        FunctionalStatement = "Influences erosion and channel maintenance during peak flows.",
-        Physical = "D",
-        Chemical = "D",
-        Biological = ""
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydraulics,
-        FunctionalVariable = FunctionalVariableType.FloodplainConnectivity,
-        FunctionalStatement = "Enhances nutrient cycling and habitat availability via water exchange.",
-        Physical = "i",
-        Chemical = "D",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Hydraulics,
-        FunctionalVariable = FunctionalVariableType.HyporheicConnectivity,
-        FunctionalStatement = "Addresses surface-subsurface connections important for temperature regulation, nutrient dynamics, and food webs.",
-        Physical = "i",
-        Chemical = "D",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Geomorphology,
-        FunctionalVariable = FunctionalVariableType.ChannelEvolution,
-        FunctionalStatement = "Addresses legacy, ongoing, and anticipated change in channel form (i.e., dimension) and slope (i.e., profile) in response to flow and sediment inputs.",
-        Physical = "D",
-        Chemical = "",
-        Biological = ""
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Geomorphology,
-        FunctionalVariable = FunctionalVariableType.LateralStability,
-        FunctionalStatement = "Examines the role of bank processes and erosion in channel change.",
-        Physical = "D",
-        Chemical = "i",
-        Biological = ""
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Geomorphology,
-        FunctionalVariable = FunctionalVariableType.PlanformChange,
-        FunctionalStatement = "Observes patterns in sinuosity and curvature affecting habitat complexity.",
-        Physical = "D",
-        Chemical = "",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Geomorphology,
-        FunctionalVariable = FunctionalVariableType.SedimentContinuity,
-        FunctionalStatement = "Maintains channel morphology and habitats through sediment processes.",
-        Physical = "D",
-        Chemical = "D",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Geomorphology,
-        FunctionalVariable = FunctionalVariableType.LargeWood,
-        FunctionalStatement = "Enhances habitat complexity and streambank stability.",
-        Physical = "i",
-        Chemical = "",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Geomorphology,
-        FunctionalVariable = FunctionalVariableType.BedComposition,
-        FunctionalStatement = "Supports aquatic habitats through streambed material and bedform dynamics.",
-        Physical = "D",
-        Chemical = "",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Physicochemical,
-        FunctionalVariable = FunctionalVariableType.LightAndThermalRegime,
-        FunctionalStatement = "Regulates water chemistry, drives carbon sources and dynamics, and governs the breadth of niche space available for organisms.",
-        Physical = "",
-        Chemical = "D",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Physicochemical,
-        FunctionalVariable = FunctionalVariableType.CarbonProcessing,
-        FunctionalStatement = "Dictates availability of energy sources and supports food webs with ties to pH, production, respiration, and overall system metabolism.",
-        Physical = "",
-        Chemical = "i",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Physicochemical,
-        FunctionalVariable = FunctionalVariableType.NutrientCycling,
-        FunctionalStatement = "Drives productivity and quality of waters based on nitrogen & phosphorous.",
-        Physical = "",
-        Chemical = "D",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Physicochemical,
-        FunctionalVariable = FunctionalVariableType.WaterAndSoilQuality,
-        FunctionalStatement = "Indicates the fate and transport of contaminants and other focal constituents.",
-        Physical = "",
-        Chemical = "D",
-        Biological = "i"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Biology,
-        FunctionalVariable = FunctionalVariableType.HabitatProvision,
-        FunctionalStatement = "Supports diverse niches for a range of life stages of aquatic & riparian taxa.",
-        Physical = "",
-        Chemical = "",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Biology,
-        FunctionalVariable = FunctionalVariableType.PopulationSupport,
-        FunctionalStatement = "Provides for reproduction, survival, and movement of key taxa.",
-        Physical = "",
-        Chemical = "i",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Biology,
-        FunctionalVariable = FunctionalVariableType.CommunityDynamics,
-        FunctionalStatement = "Facilitates balanced assemblages composed of native taxa with minimal invasive species dominance and representation of keystone species, ecological engineers, and other functionally important taxa.",
-        Physical = "",
-        Chemical = "i",
-        Biological = "D"
-    },
-    new FunctionalVariableOption
-    {
-        FunctionalCategory = FunctionalCategory.Biology,
-        FunctionalVariable = FunctionalVariableType.WatershedConnectivity,
-        FunctionalStatement = "Facilitates colonization dynamics and capacity to recover after disturbance.",
-        Physical = "D",
-        Chemical = "",
-        Biological = "D"
+        functionalVariableSelectableOptions = SharedData.MyStreamModelFunctionList.Select(streamFunction => new FunctionalVariableOption
+            {
+                FunctionalCategory = Enum.TryParse<FunctionalCategory>(NormalizeEnumName(streamFunction.FunctionalCategory), true, out var functionalCategory) ? functionalCategory : FunctionalCategory.Hydrology,
+                FunctionalVariable = Enum.TryParse<FunctionalVariableType>(NormalizeEnumName(streamFunction.FunctionalVariable), true, out var functionalVariable) ? functionalVariable : FunctionalVariableType.CatchmentHydrology,
+                FunctionalStatement = streamFunction.FunctionalStatement,
+                Physical = streamFunction.Physical,
+                Chemical = streamFunction.Chemical,
+                Biological = streamFunction.Biological,
+                IsSelected = true
+            }).ToList();
     }
-};
 
-    private List<MetricOption> metricOptions = new()
-{
-    new MetricOption
+    private List<MetricOption> allPossibleMetricOptions = new() { };
+
+    private void LoadMetricsFromToolboxMetrics()
     {
-        MetricId = "Vcanopy",
-        MetricAssessment = "Percent canopy over channel",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.LightAndThermalRegime, FunctionalVariableType.HabitatProvision}
-    },
-    new MetricOption
-    {
-        MetricId = "Vembed",
-        MetricAssessment = "Average embededness of channel",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.FlowDuration, FunctionalVariableType.FlowAlteration}
-    },
-    new MetricOption
-    {
-        MetricId = "Vsubstrate",
-        MetricAssessment = "Median substrate particle size",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.BedComposition, FunctionalVariableType.FlowDuration }
-    },
-    new MetricOption
-    {
-        MetricId = "Vbero",
-        MetricAssessment = "Percent of eroded stream channel bank",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.LateralStability, FunctionalVariableType.HyporheicConnectivity }
-    },
-    new MetricOption
-    {
-        MetricId = "Vlwd",
-        MetricAssessment = "Number down woody stems per 100 feet of stream",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.LargeWood, FunctionalVariableType.CommunityDynamics }
-    },
-    new MetricOption
-    {
-        MetricId = "Vtdbh",
-        MetricAssessment = "Average dbh of trees",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.HabitatProvision }
-    },
-    new MetricOption
-    {
-        MetricId = "Vsnag",
-        MetricAssessment = "Number of snags per 100 feet of stream",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.HabitatProvision }
-    },
-    new MetricOption
-    {
-        MetricId = "Vssd",
-        MetricAssessment = "Number of saplings and shrubs per 100 feet of stream",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.HabitatProvision }
-    },
-    new MetricOption
-    {
-        MetricId = "Vsrich",
-        MetricAssessment = "Riparian vegetation species richness",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.HabitatProvision }
-    },
-    new MetricOption
-    {
-        MetricId = "Vdetritus",
-        MetricAssessment = "Average percent cover of leaves, sticks, etc",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.HabitatProvision }
-    },
-    new MetricOption
-    {
-        MetricId = "Vherb",
-        MetricAssessment = "Average percent cover of herbaceous vegetation",
-        PerformanceStandard = "Yes",
-        Method = "Visual",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.HabitatProvision }
-    },
-    new MetricOption
-    {
-        MetricId = "Vwluse",
-        MetricAssessment = "Weighted Average Runoff Score for Catchment",
-        PerformanceStandard = "Yes",
-        Method = "Visual, GIS",
-        Tier = "Screening",
-        ApplicableVariables = new List<FunctionalVariableType>
-        { FunctionalVariableType.CatchmentHydrology }
+        allPossibleMetricOptions = SharedData.MyToolboxMetricList.Select(toolboxMetric => new MetricOption
+            {
+                Assessment = toolboxMetric.Assessment,
+                Year = toolboxMetric.Year,
+                MetricShortName = toolboxMetric.MetricShortName,
+                MetricName = toolboxMetric.MetricName,
+                PerformanceStandard = toolboxMetric.PerformanceStandard,
+                Method = toolboxMetric.Method,
+                Tier = toolboxMetric.Tier,
+                Physical = "",  // blank score
+                Chemical = "", // blank score
+                Biological = "",       // blank score
+                ApplicableVariables = GetApplicableVariables(toolboxMetric), // dynamically calculate
+                PerformanceStandardLookupTable = new List<LookupTableItem>() // Populate if applicable
+            }).ToList();
     }
-};
+
+
+    private List<FunctionalVariableType> GetApplicableVariables(MyToolboxMetric toolboxMetric)
+    {
+        return typeof(MyToolboxMetric).GetProperties()
+            .Where(prop => !string.IsNullOrEmpty(prop.GetValue(toolboxMetric)?.ToString()))
+            .Select(prop => Enum.TryParse<FunctionalVariableType>(NormalizeEnumName(prop.Name), true, out var result) ? result : (FunctionalVariableType?)null)
+            .Where(variable => variable.HasValue)
+            .Select(variable => variable.Value)
+            .ToList();
+    }
 
     public enum FunctionalCategory
     {
@@ -850,6 +785,7 @@
     {
         public FunctionalVariableType VariableType { get; set; }
         public List<MetricOption> Metrics { get; set; } = new();
+        public bool IsSelected { get; set; } = true; // Default to true
     }
 
     public class FunctionalVariableOption
@@ -865,8 +801,21 @@
 
     public class MetricOption
     {
-        public string MetricId { get; set; }
-        public string MetricAssessment { get; set; }
+        // New property that combines Assessment, Year, and MetricName
+        public string UniqueID
+        {
+            get
+            {
+                return $"{Assessment} - {Year} - {MetricName}";
+            }
+        }
+
+        public string selectedVariable { get; set; }
+        public string selectedCategory { get; set; }
+        public string Assessment { get; set; }
+        public string Year { get; set; }
+        public string MetricShortName { get; set; }
+        public string MetricName { get; set; }
         public string PerformanceStandard { get; set; }
         public string Method { get; set; }
         public string Tier { get; set; }
@@ -876,6 +825,7 @@
         public string Chemical { get; set; }
         public string Biological { get; set; }
         public List<FunctionalVariableType> ApplicableVariables { get; set; } = new();
+        public List<LookupTableItem> PerformanceStandardLookupTable { get; set; } = new();
     }
 
     private double CalculateVariableScore(FunctionalVariable variable)
@@ -922,10 +872,14 @@
         return lookup.Biological == "D" ? variableScore : lookup.Biological == "i" ? variableScore * 0.25 : double.NaN;
     }
 
-    private double GetPhysicalSubIndex()
+
+
+    private double GetPhysicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false)
     {
         double totalScore = 0.0;
         double maxScore = 0.0;
+        int dVal = 0;
+        int iVal = 0;
 
         foreach (var category in functionalCategoryItems)
         {
@@ -939,24 +893,51 @@
                 var lookup = GetFunctionalVariableOption(variable.VariableType);
                 if (lookup.Physical == "D")
                 {
+                    dVal += 1;
                     maxScore += 1.0;
                     totalScore += CalculatePhysicalScore(variable);
                 }
                 else if (lookup.Physical == "i")
                 {
+                    iVal += 1;
                     maxScore += 0.25;
                     totalScore += CalculatePhysicalScore(variable) * 0.25;
                 }
             }
         }
 
-        return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0;
+        if (Index == true)
+        {
+            return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0;
+        }
+        else if (total == true)
+        {
+            return totalScore > 0 ? Math.Round(totalScore, 2) : 0.0;
+        }
+        else if (max == true)
+        {
+            return maxScore > 0 ? Math.Round(maxScore, 2) : 0.0;
+        }
+        else if (dCount == true)
+        {
+            return dVal;
+        }
+        else if (iCount == true)
+        {
+            return iVal;
+        }
+        else
+        {
+            return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0; // Default to index
+        }
     }
 
-    private double GetChemicalSubIndex()
+    private double GetChemicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false)
     {
         double totalScore = 0.0;
         double maxScore = 0.0;
+        int dVal = 0;
+        int iVal = 0;
 
         foreach (var category in functionalCategoryItems)
         {
@@ -970,24 +951,51 @@
                 var lookup = GetFunctionalVariableOption(variable.VariableType);
                 if (lookup.Chemical == "D")
                 {
+                    dVal += 1;
                     maxScore += 1.0;
                     totalScore += CalculateChemicalScore(variable);
                 }
                 else if (lookup.Chemical == "i")
                 {
+                    iVal += 1;
                     maxScore += 0.25;
                     totalScore += CalculateChemicalScore(variable) * 0.25;
                 }
             }
         }
 
-        return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0;
+        if (Index == true)
+        {
+            return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0;
+        }
+        else if (total == true)
+        {
+            return totalScore > 0 ? Math.Round(totalScore, 2) : 0.0;
+        }
+        else if (max == true)
+        {
+            return maxScore > 0 ? Math.Round(maxScore, 2) : 0.0;
+        }
+        else if (dCount == true)
+        {
+            return dVal;
+        }
+        else if (iCount == true)
+        {
+            return iVal;
+        }
+        else
+        {
+            return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0; // Default to index
+        }
     }
 
-    private double GetBiologicalSubIndex()
+    private double GetBiologicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false)
     {
         double totalScore = 0.0;
         double maxScore = 0.0;
+        int dVal = 0;
+        int iVal = 0;
 
         foreach (var category in functionalCategoryItems)
         {
@@ -1001,23 +1009,49 @@
                 var lookup = GetFunctionalVariableOption(variable.VariableType);
                 if (lookup.Biological == "D")
                 {
+                    dVal += 1;
                     maxScore += 1.0;
                     totalScore += CalculateBiologicalScore(variable);
                 }
                 else if (lookup.Biological == "i")
                 {
+                    iVal += 1;
                     maxScore += 0.25;
                     totalScore += CalculateBiologicalScore(variable) * 0.25;
                 }
             }
         }
 
-        return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0;
+        if (Index == true)
+        {
+            return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0;
+        }
+        else if (total == true)
+        {
+            return totalScore > 0 ? Math.Round(totalScore, 2) : 0.0;
+        }
+        else if (max == true)
+        {
+            return maxScore > 0 ? Math.Round(maxScore, 2) : 0.0;
+        }
+        else if (dCount == true)
+        {
+            return dVal;
+        }
+        else if (iCount == true)
+        {
+            return iVal;
+        }
+        else
+        {
+            return maxScore > 0 ? Math.Round(totalScore / maxScore, 2) : 0.0; // Default to index
+        }
+
     }
 
     public double GetEcosystemConditionIndex()
     {
-        double totalScore = (GetPhysicalSubIndex() + GetChemicalSubIndex() + GetBiologicalSubIndex()) / 3.0;
+        double totalScore = (GetPhysicalSubIndex(true) + GetChemicalSubIndex(true, false) + GetBiologicalSubIndex(true, false)) / 3.0;
         return Math.Round(totalScore, 2);
     }
 
@@ -1044,52 +1078,69 @@
 
     private FunctionalVariableOption GetFunctionalVariableOption(FunctionalVariableType variableType)
     {
-        return functionalVariableOptions.FirstOrDefault(option => option.FunctionalVariable == variableType);
+        return functionalVariableSelectableOptions.FirstOrDefault(option => option.FunctionalVariable == variableType);
     }
 
-    private string GetScoreText(double score, string designation)
+    private string GetScoreText(double score, string designation, int MetricsCount)
     {
+        if (MetricsCount == 0)
+        {
+            @if (string.IsNullOrEmpty(designation))
+            {
+                return "";
+            }
+            else
+            {
+                return $"{designation}"; //+ " (-)";
+            }
+        }
         if (double.IsNaN(score))
         {
-            return "";
+            @if (string.IsNullOrEmpty(designation))
+            {
+                return "-";
+            }
+            else
+            {
+                return $"{designation}";
+            }
         }
         return $"{designation} ({score:0.00})";
     }
 
     private void OnEditCategoryClick(FunctionalCategoryItem categoryItem)
     {
-
         selectedCategoryItem = categoryItem;
 
         // Filter options to only show those related to the selected category
-        filteredVariableOptions = functionalVariableOptions.Where(option => option.FunctionalCategory == categoryItem.FunctionalCategory).ToList();
+        filteredVariableSelectableOptionsForDialog = functionalVariableSelectableOptions.Where(option => option.FunctionalCategory == categoryItem.FunctionalCategory).ToList();
 
-        // Iterate over filtered options and set IsSelected if the variable is part of the selected category
-        foreach (var option in filteredVariableOptions)
+        // Iterate over filtered options and set IsSelected if the variable has IsSelected set to true
+        foreach (var option in filteredVariableSelectableOptionsForDialog)
         {
-            option.IsSelected = categoryItem.FunctionalVariables.Any(v => v.VariableType == option.FunctionalVariable);
+            option.IsSelected = categoryItem.FunctionalVariables.Any(v => v.VariableType == option.FunctionalVariable && v.IsSelected);
         }
 
         editVariableDialogVisible = true;
-
     }
 
     private void OnEditVariableClick(FunctionalVariable variable)
     {
-
         selectedCategoryItem = functionalCategoryItems.FirstOrDefault(category => category.FunctionalVariables.Contains(variable));
 
         // Filter options to only show those related to the selected category
-        filteredVariableOptions = functionalVariableOptions.Where(option => option.FunctionalCategory == selectedCategoryItem.FunctionalCategory).ToList();
+        filteredVariableSelectableOptionsForDialog = functionalVariableSelectableOptions
+            .Where(option => option.FunctionalCategory == selectedCategoryItem.FunctionalCategory)
+            .ToList();
 
-        // Iterate over filtered options and set IsSelected if the variable is part of the selected category
-        foreach (var option in filteredVariableOptions)
+        // Iterate over filtered options and set IsSelected if the variable is part of the selected category and is selected
+        foreach (var option in filteredVariableSelectableOptionsForDialog)
         {
-            option.IsSelected = selectedCategoryItem.FunctionalVariables.Any(v => v.VariableType == option.FunctionalVariable);
+            option.IsSelected = selectedCategoryItem.FunctionalVariables
+                .Any(v => v.VariableType == option.FunctionalVariable && v.IsSelected);
         }
 
         editVariableDialogVisible = true;
-
     }
 
     private void OnEditMetricClick(FunctionalVariable variable)
@@ -1098,12 +1149,12 @@
         selectedVariable = variable;
 
         // Filter metric options to show only those relevant to the selected variable
-        filteredMetricOptions = metricOptions.Where(option => option.ApplicableVariables.Contains(selectedVariable.VariableType)).ToList();
+        filteredMetricOptionsForDialog = allPossibleMetricOptions.Where(option => option.ApplicableVariables.Contains(selectedVariable.VariableType)).ToList();
 
         // Set the selected state based on existing metrics for the variable
-        foreach (var option in filteredMetricOptions)
+        foreach (var option in filteredMetricOptionsForDialog)
         {
-            option.IsSelected = selectedVariable.Metrics.Any(m => m.MetricId == option.MetricId);
+            option.IsSelected = selectedVariable.Metrics.Any(m => m.UniqueID == option.UniqueID);
         }
 
         editMetricDialogVisible = true;
@@ -1130,13 +1181,22 @@
         if (selectedCategoryItem != null)
         {
             selectedCategoryItem.FunctionalVariables.Clear();
-            foreach (var option in filteredVariableOptions)
+            foreach (var option in filteredVariableSelectableOptionsForDialog)
             {
                 if (option.IsSelected)
                 {
                     selectedCategoryItem.FunctionalVariables.Add(new FunctionalVariable
                         {
-                            VariableType = option.FunctionalVariable
+                            VariableType = option.FunctionalVariable,
+                            IsSelected = true
+                        });
+                }
+                else
+                {
+                    selectedCategoryItem.FunctionalVariables.Add(new FunctionalVariable
+                        {
+                            VariableType = option.FunctionalVariable,
+                            IsSelected = false
                         });
                 }
             }
@@ -1149,18 +1209,22 @@
         if (selectedVariable != null)
         {
             // Remove metrics that were unselected
-            selectedVariable.Metrics.RemoveAll(m => !filteredMetricOptions.Any(option => option.MetricId == m.MetricId && option.IsSelected));
+            selectedVariable.Metrics.RemoveAll(m => !filteredMetricOptionsForDialog.Any(option => option.UniqueID == m.UniqueID && option.IsSelected));
 
             // Add metrics that were newly selected
-            foreach (var option in filteredMetricOptions)
+            foreach (var option in filteredMetricOptionsForDialog)
             {
-                if (option.IsSelected && !selectedVariable.Metrics.Any(m => m.MetricId == option.MetricId))
+                if (option.IsSelected && !selectedVariable.Metrics.Any(m => m.UniqueID == option.UniqueID))
                 {
                     // Create a new instance of MetricOption to avoid shared references between variables
                     selectedVariable.Metrics.Add(new MetricOption
                         {
-                            MetricId = option.MetricId,
-                            MetricAssessment = option.MetricAssessment,
+                            selectedCategory = functionalCategoryItems.FirstOrDefault(c => c.FunctionalVariables.Contains(selectedVariable))?.FunctionalCategory.ToString(),
+                            selectedVariable = selectedVariable.VariableType.ToString(),
+                            Assessment = option.Assessment,
+                            Year = option.Year,
+                            MetricShortName = option.MetricShortName,
+                            MetricName = option.MetricName,
                             PerformanceStandard = option.PerformanceStandard,
                             Method = option.Method,
                             Tier = option.Tier,
@@ -1214,7 +1278,8 @@
 
     private bool IsFirstVariableRow(FunctionalCategoryItem category, FunctionalVariable variable)
     {
-        return category.FunctionalVariables.First() == variable;
+        bool res = category.FunctionalVariables.First() == variable;
+        return res;
     }
 
     private bool IsFirstMetricRow(FunctionalVariable variable, MetricOption metric)
@@ -1272,4 +1337,628 @@
 
         return tableItems;
     }
-}
+
+
+    private MyStreamModelFunction[]? MyStreamModelFunctionArray;
+    private MyToolboxMetric[]? MyToolboxMetricArray;
+    public async Task GetApiData()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(SharedData.csvStreamModelFunctionContent))
+            {
+                //var csvUrl = "https://raw.githubusercontent.com/USACE-WRISES/RiverEngineeringResourcesDB/refs/heads/main/Assessments.csv";
+                var csvUrl = "https://usace-wrises.github.io/RiverEngineeringResourcesDB/StreamModelFunctions.csv";
+                // Append a timestamp to the URL to prevent caching
+                csvUrl += "?t=" + DateTime.UtcNow.Ticks;
+                SharedData.csvStreamModelFunctionContent = await Http.GetStringAsync(csvUrl);
+            }
+
+            if (string.IsNullOrEmpty(SharedData.csvToolboxMetricContent))
+            {
+                //var csvUrl = "https://raw.githubusercontent.com/USACE-WRISES/RiverEngineeringResourcesDB/refs/heads/main/Assessments.csv";
+                var csvUrl = "https://usace-wrises.github.io/RiverEngineeringResourcesDB/MetricToolbox.csv";
+                // Append a timestamp to the URL to prevent caching
+                csvUrl += "?t=" + DateTime.UtcNow.Ticks;
+                SharedData.csvToolboxMetricContent = await Http.GetStringAsync(csvUrl);
+            }
+
+            // Convert CSV to JSON
+            var jsonLines1 = SharedFunctions.CsvToJsonFromString2(SharedData.csvStreamModelFunctionContent, ',');
+            string jsonContent1 = "[" + string.Join(",\n", jsonLines1) + "]";
+            //Console.WriteLine(jsonContent);
+
+            // Convert CSV to JSON
+            var jsonLines2 = SharedFunctions.CsvToJsonFromString2(SharedData.csvToolboxMetricContent, ',');
+            string jsonContent2 = "[" + string.Join(",\n", jsonLines2) + "]";
+            //Console.WriteLine(jsonContent);
+
+            // Deserialize the JSON content into MyResourcesArray
+            MyStreamModelFunctionArray = JsonSerializer.Deserialize<MyStreamModelFunction[]>(jsonContent1);
+            MyToolboxMetricArray = JsonSerializer.Deserialize<MyToolboxMetric[]>(jsonContent2);
+        }
+        catch (Exception ex)
+        {
+            // Show a popup warning using JavaScript interop
+            SharedData.assessmentErrorMessage = "Failed to download or convert CSV.";
+
+            //await module.InvokeVoidAsync("alert", "Failed to download or convert CSV. Using fallback JSON data.");
+
+            // Load the fallback JSON from the local file
+            //MyResourcesArray = await Http.GetFromJsonAsync<MyAssessmentResource[]>("sample-data/SAR20240426.json");
+            //MyResourcesArray = null;
+        }
+
+        // Convert the array to a list for further use
+        SharedData.MyStreamModelFunctionList = MyStreamModelFunctionArray.ToList();
+        SharedData.MyToolboxMetricList = MyToolboxMetricArray.ToList();
+
+        string f = "hi there";
+
+        LoadData();
+
+    }
+
+
+    private bool isDataLoaded = false; // Flag to indicate if data is loaded
+    public void LoadData()
+    {
+        LoadFunctionalCategoryItems();
+        LoadFunctionalVariableOptions();
+        LoadMetricsFromToolboxMetrics();
+
+        isDataLoaded = true;
+        StateHasChanged();
+    }
+
+
+    private async Task ExportData()
+    {
+        // Iterate through functionalCategoryItems and collect selected metrics
+        var selectedMetrics = new List<MetricOption>();
+        foreach (var category in functionalCategoryItems)
+        {
+            foreach (var variable in category.FunctionalVariables)
+            {
+                selectedMetrics.AddRange(variable.Metrics);
+            }
+        }
+
+
+        // Add dummy metrics for tracking selected variables if not already captured
+        foreach (var option in functionalVariableSelectableOptions)
+        {
+            if (option.IsSelected && !selectedMetrics.Any(m => m.selectedVariable == option.FunctionalVariable.ToString()))
+            {
+                selectedMetrics.Add(new MetricOption
+                    {
+                        selectedCategory = option.FunctionalCategory.ToString(),
+                        selectedVariable = option.FunctionalVariable.ToString(),
+                        Assessment = "",
+                        Year = "",
+                        MetricShortName = "",
+                        MetricName = "",
+                        PerformanceStandard = "",
+                        Method = "",
+                        Tier = "",
+                        IsSelected = true,
+                        Score = 0,
+                        Physical = "",
+                        Chemical = "",
+                        Biological = ""
+                    });
+            }
+        }
+
+        var records = selectedMetrics.Select(metric => new
+        {
+            metric.selectedCategory,
+            metric.selectedVariable,
+            metric.Assessment,
+            metric.Year,
+            metric.MetricShortName,
+            metric.MetricName,
+            metric.PerformanceStandard,
+            metric.IsSelected,
+            metric.Method,
+            metric.Tier,
+            metric.Score,
+            metric.Physical,
+            metric.Chemical,
+            metric.Biological
+        }).ToList();
+
+        string csvData;
+        using (var writer = new StringWriter())
+        using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+        {
+            csv.WriteRecords(records);
+            csvData = writer.ToString();
+        }
+
+        string fileName = string.IsNullOrEmpty(streamModelName) ? "new model.csv" : streamModelName + ".csv";
+        await module.InvokeVoidAsync("downloadCsv", fileName, csvData);
+
+    }
+
+    private IJSObjectReference? module;
+    private string? result;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Snackbar.Configuration.PositionClass = Defaults.Classes.Position.TopCenter;
+            Snackbar.Configuration.VisibleStateDuration = 1000;
+            Snackbar.Configuration.ShowTransitionDuration = 500;
+            Snackbar.Configuration.HideTransitionDuration = 500;
+
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./assess.js");
+            if (module != null)
+            {
+                result = await module.InvokeAsync<string>("load");
+                await module.InvokeVoidAsync("initializeDotnetHelper", DotNetObjectReference.Create(this));
+
+            }
+        }
+    }
+
+
+
+    // private async Task HandleFileChange(InputFileChangeEventArgs e)
+    // {
+    //     var file = e.File;
+    //     using var stream = file.OpenReadStream();
+    //     using var reader = new StreamReader(stream);
+
+    //     var content = await reader.ReadToEndAsync();
+    //     using (var csv = new CsvReader(new StringReader(content), CultureInfo.InvariantCulture))
+    //     {
+    //         var records = csv.GetRecords<MetricOption>().ToList();
+    //         metricOptions = records;
+    //     }
+
+    //     StateHasChanged();
+    // }
+    private async void OnImportClick()
+    {
+        await module.InvokeVoidAsync("triggerFileInputClick", "fileUploadInput");
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+
+
+        var file = e.File;
+        using var stream = file.OpenReadStream();
+        using var reader = new StreamReader(stream);
+        var importedMetrics = new List<MetricOption>();
+
+        var content = await reader.ReadToEndAsync();
+
+        //console.log(`File selected: ${file.name}`);
+        // Additional processing logic goes here
+
+        try
+        {
+            using (var csv = new CsvReader(new StringReader(content), CultureInfo.InvariantCulture))
+            {
+                importedMetrics = csv.GetRecords<MetricOption>().ToList();
+            }
+
+            if (importedMetrics == null || importedMetrics.Count == 0)
+            {
+                Snackbar.Add("Uploaded file is invalid or empty.", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            // console.error("Error loading CSV data: " + ex.message);
+
+            Snackbar.Add("Error loading stream model.", Severity.Error);
+            return;
+        }
+
+        // Clear existing data
+        filteredMetricOptionsForDialog.Clear();
+        filteredVariableSelectableOptionsForDialog.Clear();
+
+        //Iterate through functoinalCategoryItems and clear the selected metrics
+        foreach (var category in functionalCategoryItems)
+        {
+            foreach (var variable in category.FunctionalVariables)
+            {
+                variable.Metrics.Clear();
+                variable.IsSelected = false;
+            }
+        }
+        //iterate through functionalVariables and clear their selection
+        foreach (var option in functionalVariableSelectableOptions)
+        {
+            option.IsSelected = false;
+        }
+
+
+
+        // Update the stream model name to the name in the CSV (assuming CSV contains such information)
+        streamModelName = Path.GetFileNameWithoutExtension(file.Name);
+        //If streammodelname is null or empty give it a defualt value of Stream Model
+        if (string.IsNullOrEmpty(streamModelName))
+        {
+            streamModelName = "Stream Model";
+        }
+
+        // Populate functional categories and variables
+        functionalCategoryItems = new List<FunctionalCategoryItem>();
+        foreach (var metric in importedMetrics)
+        {
+            selectedCategoryItem = functionalCategoryItems.FirstOrDefault(c => c.FunctionalCategory.ToString() == metric.selectedCategory);
+            var variable = selectedCategoryItem.FunctionalVariables.FirstOrDefault(v => v.VariableType.ToString() == metric.selectedVariable);
+            @if (variable != null)
+            {
+                variable.IsSelected = true;
+            }
+
+            // Filter options to only show those related to the selected category
+            filteredVariableSelectableOptionsForDialog = functionalVariableSelectableOptions.Where(option => option.FunctionalCategory == selectedCategoryItem.FunctionalCategory).ToList();
+
+            // Iterate over filtered options and set IsSelected if the variable is part of the selected category
+            foreach (var option in filteredVariableSelectableOptionsForDialog)
+            {
+                option.IsSelected = selectedCategoryItem.FunctionalVariables.Any(v => v.VariableType == variable.VariableType);
+                //option.FunctionalVariable.Metrics.Clear();
+
+            }
+
+
+            // Add metrics to the corresponding variable
+            if (!variable.Metrics.Any(m => m.UniqueID == metric.UniqueID))
+            {
+                variable.Metrics.Add(new MetricOption
+                    {
+                        selectedCategory = metric.selectedCategory,
+                        selectedVariable = metric.selectedVariable,
+                        Assessment = metric.Assessment,
+                        Year = metric.Year,
+                        MetricShortName = metric.MetricShortName,
+                        MetricName = metric.MetricName,
+                        PerformanceStandard = metric.PerformanceStandard,
+                        Method = metric.Method,
+                        Tier = metric.Tier,
+                        Score = metric.Score,
+                        Physical = metric.Physical,
+                        Chemical = metric.Chemical,
+                        Biological = metric.Biological,
+                        ApplicableVariables = new List<FunctionalVariableType>(metric.ApplicableVariables)
+                    });
+            }
+        }
+
+    }
+
+
+    private async Task ExportXlsx()
+    {
+        // Disable UI or show loading indicator here (e.g., Snackbar or MudProgressCircular)
+
+        Snackbar.Add("Exporting model and starting download.", Severity.Normal);
+
+        await Task.Run(() =>
+        {
+            using var workbook = new ClosedXML.Excel.XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Stream Model Data");
+
+            // Set header row
+            worksheet.Cell(1, 1).Value = "Functional Category";
+            worksheet.Cell(1, 2).Value = "Functional Variable";
+            worksheet.Cell(1, 3).Value = "Metric Name";
+            worksheet.Cell(1, 4).Value = "Metric Score (0-1.0)";
+            worksheet.Cell(1, 5).Value = "Variable Score (0-1.0)";
+            worksheet.Cell(1, 6).Value = "Physical";
+            worksheet.Cell(1, 7).Value = "Chemical";
+            worksheet.Cell(1, 8).Value = "Biological";
+
+            // Center alignment for score columns
+            worksheet.Column(4).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            worksheet.Column(5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            worksheet.Column(6).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            worksheet.Column(7).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            worksheet.Column(8).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+
+
+            // Set number format to 2 decimal places for score columns
+            worksheet.Column(4).Style.NumberFormat.Format = "0.00";
+            worksheet.Column(5).Style.NumberFormat.Format = "0.00";
+            worksheet.Column(6).Style.NumberFormat.Format = "0.00";
+            worksheet.Column(7).Style.NumberFormat.Format = "0.00";
+            worksheet.Column(8).Style.NumberFormat.Format = "0.00";
+
+            // Add data rows
+            var row = 2;
+            var currFunctionalCategory = string.Empty;
+            var currFunctionalVariable = string.Empty;
+            int trackingFirstRowOfVariable = 1;
+            int trackingFirstRowOfCategory = 1;
+
+            foreach (var tableItem in GetTableItems())
+            {
+
+
+                worksheet.Cell(row, 3).Value = tableItem.Metric.MetricName;
+
+                //if metric.score is blank or empty then set worksheet.cell(row,4) to blank
+                if (string.IsNullOrEmpty(tableItem.Metric.MetricName))
+                {
+                    worksheet.Cell(row, 4).Value = "";
+                }
+                else
+                {
+                    worksheet.Cell(row, 4).Value = tableItem.Metric.Score;
+                }
+
+                if (tableItem.Category.FunctionalCategory.ToString() != currFunctionalCategory)
+                {
+                    trackingFirstRowOfCategory = row;
+                    worksheet.Cell(row, 1).Value = tableItem.Category.FunctionalCategory.ToString();
+                    currFunctionalCategory = tableItem.Category.FunctionalCategory.ToString();
+                }
+                else
+                {
+                    // Merge the functional category cell with the row above it
+                    worksheet.Range(trackingFirstRowOfCategory, 1, row, 1).Merge();
+                }
+                if (currFunctionalVariable != tableItem.Variable.VariableType.ToString())
+                {
+                    trackingFirstRowOfVariable = row;
+                    worksheet.Cell(row, 2).Value = GetFormattedVariableType(tableItem.Variable.VariableType); //Formatted variable name
+                    currFunctionalVariable = tableItem.Variable.VariableType.ToString();
+
+                    // Average metric score for the variable
+                    if (tableItem.Variable.IsSelected)
+                    {
+                        worksheet.Cell(row, 5).FormulaA1 = "AVERAGE(D" + trackingFirstRowOfVariable + " :D" + (row) + ")";
+                    }
+                    else
+                    {
+                        worksheet.Cell(row, 5).FormulaA1 = "=NA()";
+                    }
+
+
+                    // Add formulas for Physical, Chemical, and Biological, with multipliers based on D, i, or empty
+                    var physicalOption = GetFunctionalVariableOption(tableItem.Variable.VariableType).Physical;
+                    var chemicalOption = GetFunctionalVariableOption(tableItem.Variable.VariableType).Chemical;
+                    var biologicalOption = GetFunctionalVariableOption(tableItem.Variable.VariableType).Biological;
+
+                    var variableScore = $"E{row}";
+
+                    // Physical
+                    if (physicalOption == "D")
+                    {
+                        worksheet.Cell(row, 6).FormulaA1 = $"=CONCATENATE(\"D (\", E{row}, \")\")";
+                    }
+                    else if (physicalOption == "i")
+                    {
+                        worksheet.Cell(row, 6).FormulaA1 = $"=CONCATENATE(\"i (\", E{row}*0.25, \")\")";
+                    }
+                    else
+                    {
+                        worksheet.Cell(row, 6).Value = string.Empty; // Leave cell blank if empty
+                    }
+
+                    // Chemical
+                    if (chemicalOption == "D")
+                    {
+                        worksheet.Cell(row, 7).FormulaA1 = $"=CONCATENATE(\"D (\", E{row}, \")\")";
+                    }
+                    else if (chemicalOption == "i")
+                    {
+                        worksheet.Cell(row, 7).FormulaA1 = $"=CONCATENATE(\"i (\", E{row}*0.25, \")\")";
+                    }
+                    else
+                    {
+                        worksheet.Cell(row, 7).Value = string.Empty; // Leave cell blank if empty
+                    }
+
+                    // Biological
+                    if (biologicalOption == "D")
+                    {
+                        worksheet.Cell(row, 8).FormulaA1 = $"=CONCATENATE(\"D (\", E{row}, \")\")";
+                    }
+                    else if (biologicalOption == "i")
+                    {
+                        worksheet.Cell(row, 8).FormulaA1 = $"=CONCATENATE(\"i (\", E{row}*0.25, \")\")";
+                    }
+                    else
+                    {
+                        worksheet.Cell(row, 8).Value = string.Empty; // Leave cell blank if empty
+                    }
+
+                }
+                else
+                {
+                    // Merge the functional variable cell with the row above it
+                    worksheet.Range(trackingFirstRowOfVariable, 2, row, 2).Merge();
+
+                    // Merge the variable score, biological, chemical, and physical cells with the row above it
+                    worksheet.Range(trackingFirstRowOfVariable, 5, row, 5).Merge();
+                    worksheet.Range(trackingFirstRowOfVariable, 6, row, 6).Merge();
+                    worksheet.Range(trackingFirstRowOfVariable, 7, row, 7).Merge();
+                    worksheet.Range(trackingFirstRowOfVariable, 8, row, 8).Merge();
+                }
+
+                // Set row background color based on Functional Category
+                var rangeFirstCol = worksheet.Range(row, 1, row, 1);
+                switch (tableItem.Category.FunctionalCategory)
+                {
+                    case FunctionalCategory.Hydrology:
+                        rangeFirstCol.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#D9E1F2");
+                        break;
+                    case FunctionalCategory.Hydraulics:
+                        rangeFirstCol.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#B4C6E7");
+                        break;
+                    case FunctionalCategory.Geomorphology:
+                        rangeFirstCol.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#FCE4D6");
+                        break;
+                    case FunctionalCategory.Physicochemical:
+                        rangeFirstCol.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#FFF2CC");
+                        break;
+                    case FunctionalCategory.Biology:
+                        rangeFirstCol.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#E2EFDA");
+                        break;
+                    default:
+                        break;
+                }
+
+                var range2 = worksheet.Range(row, 2, row, 8);
+                if (!tableItem.Variable.IsSelected)
+                {
+                    range2.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+
+                }
+
+
+                else
+                {
+                    switch (tableItem.Category.FunctionalCategory)
+                    {
+                        case FunctionalCategory.Hydrology:
+                            range2.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#D9E1F2");
+                            break;
+                        case FunctionalCategory.Hydraulics:
+                            range2.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#B4C6E7");
+                            break;
+                        case FunctionalCategory.Geomorphology:
+                            range2.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#FCE4D6");
+                            break;
+                        case FunctionalCategory.Physicochemical:
+                            range2.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#FFF2CC");
+                            break;
+                        case FunctionalCategory.Biology:
+                            range2.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#E2EFDA");
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+                currFunctionalCategory = tableItem.Category.FunctionalCategory.ToString();
+                currFunctionalVariable = tableItem.Variable.VariableType.ToString();
+
+                // Set all borders for the row
+                rangeFirstCol.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+                rangeFirstCol.Style.Border.InsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+
+                range2.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+                range2.Style.Border.InsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+
+                row++;
+            }
+            var rangeFirstCol2 = worksheet.Range(1, 1, row - 1, 1);
+            rangeFirstCol2.Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            rangeFirstCol2.Style.Alignment.Vertical = ClosedXML.Excel.XLAlignmentVerticalValues.Top;
+
+            var rangeSecCol2 = worksheet.Range(1, 2, row - 1, 2);
+            rangeSecCol2.Style.Alignment.Vertical = ClosedXML.Excel.XLAlignmentVerticalValues.Center;
+
+            var rangeScoresCol2 = worksheet.Range(1, 5, row - 1, 8);
+            rangeScoresCol2.Style.Alignment.Vertical = ClosedXML.Excel.XLAlignmentVerticalValues.Center;
+
+            var rangeTop = worksheet.Range(1, 1, 1, 8);
+            rangeTop.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+            rangeTop.Style.Border.InsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+
+            var rangeIndices = worksheet.Range(row, 6, row + 5, 8);
+            rangeIndices.Style.Border.OutsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+            rangeIndices.Style.Border.InsideBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+
+            //make the effect counts integers
+            worksheet.Range(row + 1, 6, row + 2, 8).Style.NumberFormat.Format = "0";
+
+
+            // Add formulas to calculate sub-totals for Physical, Chemical, and Biological columns
+            worksheet.Cell(row, 5).Value = "Weighted Score Total";
+            worksheet.Cell(row, 5).Style.Font.Bold = true;
+            worksheet.Cell(row, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
+            worksheet.Cell(row, 6).AsRange().FormulaArrayA1 = "=SUMPRODUCT(IFERROR(--MID(F2:F" + (row - 1) + ", FIND(\"(\", F2:F" + (row - 1) + ") + 1, FIND(\")\", F2:F" + (row - 1) + ") - FIND(\"(\", F2:F" + (row - 1) + ") - 1), 0))";
+            worksheet.Cell(row, 7).AsRange().FormulaArrayA1 = "=SUMPRODUCT(IFERROR(--MID(G2:G" + (row - 1) + ", FIND(\"(\", G2:G" + (row - 1) + ") + 1, FIND(\")\", G2:G" + (row - 1) + ") - FIND(\"(\", G2:G" + (row - 1) + ") - 1), 0))";
+            worksheet.Cell(row, 8).AsRange().FormulaArrayA1 = "=SUMPRODUCT(IFERROR(--MID(H2:H" + (row - 1) + ", FIND(\"(\", H2:H" + (row - 1) + ") + 1, FIND(\")\", H2:H" + (row - 1) + ") - FIND(\"(\", H2:H" + (row - 1) + ") - 1), 0))";
+
+
+            // Add rows to calculate the number of D's and i's in each of the columns
+            worksheet.Cell(row + 1, 5).Value = "Direct Effect";
+            worksheet.Cell(row + 1, 5).Style.Font.Bold = true;
+            worksheet.Cell(row + 1, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
+            worksheet.Cell(row + 1, 6).FormulaA1 = "=COUNTIF(F2:F" + (row - 1) + ", \"D*\")";
+            worksheet.Cell(row + 1, 7).FormulaA1 = "=COUNTIF(G2:G" + (row - 1) + ", \"D*\")";
+            worksheet.Cell(row + 1, 8).FormulaA1 = "=COUNTIF(H2:H" + (row - 1) + ", \"D*\")";
+
+            worksheet.Cell(row + 2, 5).Value = "Indirect Effect";
+            worksheet.Cell(row + 2, 5).Style.Font.Bold = true;
+            worksheet.Cell(row + 2, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
+            worksheet.Cell(row + 2, 6).FormulaA1 = "=COUNTIF(F2:F" + (row - 1) + ", \"i*\")";
+            worksheet.Cell(row + 2, 7).FormulaA1 = "=COUNTIF(G2:G" + (row - 1) + ", \"i*\")";
+            worksheet.Cell(row + 2, 8).FormulaA1 = "=COUNTIF(H2:H" + (row - 1) + ", \"i*\")";
+
+            // Set formulas for calculating maximum possible scores in Physical, Chemical, and Biological columns
+            worksheet.Cell(row + 3, 5).Value = "Max Score";
+            worksheet.Cell(row + 3, 5).Style.Font.Bold = true;
+            worksheet.Cell(row + 3, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
+            worksheet.Cell(row + 3, 6).FormulaA1 = "=(F" + (row + 1) + " * 1) + (F" + (row + 2) + " * 0.25)";
+            worksheet.Cell(row + 3, 7).FormulaA1 = "=(G" + (row + 1) + " * 1) + (G" + (row + 2) + " * 0.25)";
+            worksheet.Cell(row + 3, 8).FormulaA1 = "=(H" + (row + 1) + " * 1) + (H" + (row + 2) + " * 0.25)";
+
+
+            // Add formulas to calculate averages for Physical, Chemical, and Biological columns
+            worksheet.Cell(row + 4, 5).Value = "Condition Sub-Index";
+            worksheet.Cell(row + 4, 5).Style.Font.Bold = true;
+            worksheet.Cell(row + 4, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
+            worksheet.Cell(row + 4, 6).FormulaA1 = "=F" + (row) + " / F" + (row + 3);
+            worksheet.Cell(row + 4, 7).FormulaA1 = "=G" + (row) + " / G" + (row + 3);
+            worksheet.Cell(row + 4, 8).FormulaA1 = "=H" + (row) + " / H" + (row + 3);
+
+            // Add the overall average across Physical, Chemical, and Biological in the next row
+            worksheet.Cell(row + 5, 5).Value = "Ecosystem Condition Index";
+            worksheet.Cell(row + 5, 5).Style.Font.Bold = true;
+            worksheet.Cell(row + 5, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
+            worksheet.Range(row + 5, 6, row + 5, 8).Merge().Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
+            worksheet.Cell(row + 5, 6).FormulaA1 = $"AVERAGE(F{row + 4}:H{row + 4})";
+
+            // Apply formatting
+            worksheet.Range("A1:H1").Style.Font.Bold = true;
+            worksheet.Columns().AdjustToContents();
+
+            worksheet.Columns("F", "H").Width = 10;
+
+            // Set max width for columns
+            foreach (var column in worksheet.Columns())
+            {
+                if (column.Width > 50)
+                {
+                    column.Width = 50; // Set a reasonable max width
+                }
+            }
+
+            // Calculate all formulas in the workbook
+            workbook.CalculateMode = ClosedXML.Excel.XLCalculateMode.Auto;
+            workbook.FullCalculationOnLoad = true;
+
+            // Save workbook to memory stream and trigger download
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Seek(0, SeekOrigin.Begin);
+
+            // Convert stream to byte array
+            var bytes = stream.ToArray();
+            var base64String = Convert.ToBase64String(bytes);
+
+            var fileName = string.IsNullOrEmpty(streamModelName) ? "StreamModel.xlsx" : $"{streamModelName}.xlsx";
+            // var file2 = File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+
+
+            var filePath = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + base64String;
+            InvokeAsync(async () =>
+            {
+                await module.InvokeVoidAsync("downloadFileExcel", fileName, base64String);
+            });
+        });
+    }
+    }

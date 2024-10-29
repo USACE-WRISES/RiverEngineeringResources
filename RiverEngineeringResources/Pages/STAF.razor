@@ -11,6 +11,7 @@
 @inject HttpClient httpClient
 @using RiverEngineeringResources.Shared
 @inject SharedData SharedData
+@inject SharedFunctions SharedFunctions
 @implements IAsyncDisposable
 
 <PageTitle>STAF</PageTitle>
@@ -32,7 +33,7 @@
 
 <MudPaper Elevation="0" Class="d-flex flex-row flex-grow-1 gap-4 mx-n16" Outlined="false">
 
-    <STAFTableComponent />
+    <STAFTableComponent @ref="stafTableComponentRef" />
 
 </MudPaper>
 
@@ -54,12 +55,15 @@
 </style>
 
 @code {
+    private STAFTableComponent stafTableComponentRef;
 
     protected override async Task OnInitializedAsync()
     {
         SharedData.SetSTAFPageSelected();
-
     }
+
+    private bool _hasInitialized = false;
+
 
     private IJSObjectReference? module;
     private IJSObjectReference? _chartReference;
@@ -76,6 +80,40 @@
 
             }
         }
+
+
+        // //Check if the data has been loaded from the API and the SharedData.MyToolboxMetricList is not null and has data. If it does not have data, then call the API to get the data.'
+        // if (SharedData.MyStreamModelFunctionList != null && SharedData.MyStreamModelFunctionList.Count > 0)
+        // {
+        //     if (SharedData.MyToolboxMetricList != null && SharedData.MyToolboxMetricList.Count > 0)
+        //     {
+        //         stafTableComponentRef.LoadData();
+        //         return;
+        //     }
+        // }
+
+        if (firstRender && !_hasInitialized)
+        {
+            SharedData.SetSTAFPageSelected();
+
+            if (SharedData.MyStreamModelFunctionList != null && SharedData.MyStreamModelFunctionList.Count > 0)
+            {
+                if (SharedData.MyToolboxMetricList != null && SharedData.MyToolboxMetricList.Count > 0)
+                {
+                    stafTableComponentRef.LoadData();
+                    return;
+                }
+            }
+
+            if (stafTableComponentRef != null)
+            {
+                await stafTableComponentRef.GetApiData();
+            }
+
+            _hasInitialized = true;
+        }
+
+
     }
     async ValueTask IAsyncDisposable.DisposeAsync()
     {

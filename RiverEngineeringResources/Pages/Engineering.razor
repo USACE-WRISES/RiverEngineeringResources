@@ -10,6 +10,7 @@
 @inject HttpClient httpClient
 @using RiverEngineeringResources.Shared
 @inject SharedData SharedData
+@inject SharedFunctions SharedFunctions
 
 <PageTitle>Engineering</PageTitle>
 
@@ -1918,9 +1919,9 @@
                 SharedData.csvDataToolsContent = await Http.GetStringAsync(csvDataToolsUrl);
             }
             // Convert CSV to JSON
-            var documentsJsonLines = CsvToJsonFromString2(SharedData.csvDocumentsContent, ',');
+            var documentsJsonLines = SharedFunctions.CsvToJsonFromString2(SharedData.csvDocumentsContent, ',');
             string documentsJsonContent = "[" + string.Join(",\n", documentsJsonLines) + "]";
-            var dataToolsJsonLines = CsvToJsonFromString2(SharedData.csvDataToolsContent, ',');
+            var dataToolsJsonLines = SharedFunctions.CsvToJsonFromString2(SharedData.csvDataToolsContent, ',');
             string dataToolsJsonContent = "[" + string.Join(",\n", dataToolsJsonLines) + "]";
             //Console.WriteLine(jsonContent);
 
@@ -2028,25 +2029,6 @@
 
     }
 
-
-    public static IEnumerable<string> CsvToJsonFromString2(string csvContent, char delim = ',')
-    {
-        using (var reader = new StringReader(csvContent))
-        using (var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                Delimiter = delim.ToString(),
-                BadDataFound = null // Suppress bad data warnings if needed
-            }))
-        {
-            var records = csv.GetRecords<dynamic>();
-            foreach (var record in records)
-            {
-                var ds = ((IDictionary<string, object>)record)
-                         .ToDictionary(k => k.Key, v => v.Value?.ToString());
-                yield return JsonSerializer.Serialize(ds);
-            }
-        }
-    }
 
 
     public static int? ShortNumber(int? Val)
