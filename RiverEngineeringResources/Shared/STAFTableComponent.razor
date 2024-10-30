@@ -237,17 +237,17 @@
                 <MudTd Class="nonclickabletext" Style="text-align:center; border-color:black; vertical-align:middle;">
                     <div class="subindex-container">
                         <MudText>@GetSubIndexScore("Chemical", GetChemicalSubIndex(false, true))</MudText>
-                    </div>
-                    <div class="subindex-container">
+                        </div>
+                        <div class="subindex-container">
                             <MudText>@GetChemicalSubIndex(false, false, false, true)</MudText>
-                    </div>
-                    <div class="subindex-container">
+                        </div>
+                        <div class="subindex-container">
                             <MudText>@GetChemicalSubIndex(false, false, false, false, true)</MudText>
-                    </div>
-                    <div class="subindex-container">
+                        </div>
+                        <div class="subindex-container">
                             <MudText>@GetChemicalSubIndex(false, false, true, false, false)</MudText>
-                    </div>
-                    <div class="subindex-container">
+                        </div>
+                        <div class="subindex-container">
                             @if (@GetSubIndexScore("Chemical", GetChemicalSubIndex()) == "No Scores")
                         {
                             <MudText>No Scores</MudText>
@@ -283,8 +283,8 @@
                         <div class="subindex-container">
                             <MudText>@GetBiologicalSubIndex(false, false, true, false, false)</MudText>
                         </div>
-                    <div class="subindex-container">
-                        @if (@GetSubIndexScore("Biological", GetBiologicalSubIndex()) == "No Scores")
+                        <div class="subindex-container">
+                            @if (@GetSubIndexScore("Biological", GetBiologicalSubIndex()) == "No Scores")
                         {
                             <MudText>No Scores</MudText>
                         }
@@ -362,7 +362,7 @@ else
 
     <MudDialog @bind-IsVisible="editMetricDialogVisible" Options="MudDialog1Options2">
         <DialogContent>
-            <MudStack Style="max-height:80vh">
+            <MudStack Style="max-height:80vh; width:100%">
                 <!-- this is needed to avoid scroll bar on dialog -->
                 <MudText Typo="Typo.h6">Select Metrics for @selectedVariable?.VariableType</MudText>
                 <MudPaper Elevation="0" Class="d-flex align-items-center justify-center p-1">
@@ -371,46 +371,89 @@ else
                         <MudLink OnClick="@(args => ToggleSelectAllMetrics(filteredMetricOptionsForDialog,false))" Class="ml-2" Style="cursor:pointer;font-size:medium">Unselect All</MudLink>
                     </MudText>
                 </MudPaper>
-                <MudTable Class="fullheight" Items="filteredMetricOptionsForDialog" Hover="true" Bordered="true" Striped="true" Dense="true">
-                    <HeaderContent>
-                        <MudTh>Select</MudTh>
-                        <MudTh>Metric ID</MudTh>
-                        <MudTh>Metric Name</MudTh>
-                        <MudTh>Performance Standard</MudTh>
-                        <MudTh>Method</MudTh>
-                        <MudTh>Tier</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Select">
-                            <MudCheckBox T="bool" @bind-Checked="@context.IsSelected" />
-                        </MudTd>
-                        <MudTd DataLabel="Metric ID">@context.MetricShortName</MudTd>
-                        <MudTd DataLabel="Metric Name">@context.MetricName</MudTd>
-                        <MudTd DataLabel="Performance Standard">@context.PerformanceStandard</MudTd>
-                        <MudTd DataLabel="Method">@context.Method</MudTd>
-                        <MudTd DataLabel="Tier">@context.Tier</MudTd>
-                    </RowTemplate>
-                </MudTable>
-                <MudStack Row="true" Justify="Justify.FlexEnd">
-                    @*                     <MudButton OnClick="@(() => UnselectAllMetrics())" Color="Color.Default" Style="margin-right: auto;">Unselect All</MudButton> *@
-                    <MudButton OnClick="@SaveSelectedMetrics" Color="Color.Primary">Save</MudButton>
-                    <MudButton OnClick="@CloseEditMetricDialog" Color="Color.Secondary">Cancel</MudButton>
+                <MudDataGrid ReadOnly="false" EditMode="DataGridEditMode.Form" Elevation="0" Style="column-fill:balance-all; width:100%; heigth:100%" T="MetricOption" @ref="mudDataGrid" Items="filteredMetricOptionsForDialog" SortMode="SortMode.Single" Filterable="true" FilterMode="DataGridFilterMode.ColumnFilterMenu" FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive" ShowFilterIcons="true" QuickFilter="@_quickFilter"
+                             Hideable="false" Groupable="true" DragDropColumnReordering="true" DragIndicatorIcon="" DragIndicatorSize="0" HorizontalScrollbar="true" Outlined="true" SelectedItemChanged="@selectedItemChanged" Dense="true" Bordered="true" Striped="true" Hover="true" Virtualize="false" FixedHeader="false" ShowMenuIcon="true">
+                    <ToolBarContent>
+                        <MudGrid Style="width: 100%;">
+                            <MudItem xs="2" Class="gap-0 my-n3 pa-0" />
+                            <MudItem xs="8" Class="gap-0 my-n3 pa-0">
+                                <MudStack Class="d-inline justify-center flex-grow-0" Row="true">
+                                    <MudTextField @bind-Value="_searchString" Clearable="true" Placeholder="Search" Margin="Margin.Dense" Adornment="Adornment.Start" Immediate="false"
+                                                  AdornmentIcon="@Icons.Material.Filled.Search" DebounceInterval="500" IconSize="Size.Small"></MudTextField>
+                                    <MudTooltip Text="Clear Filters">
+                                        <MudIconButton Class="mt-4" Icon="@filtersOnStyle()" Size="Size.Small" OnClick="@clearFilters" aria-label="filter"></MudIconButton>
+                                    </MudTooltip>
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="2" Class="gap-0 my-n3 pa-0" />
+                        </MudGrid>
+                    </ToolBarContent>
+
+                    <NoRecordsContent>
+                        <MudText Style="color:#222; font-size:13px; font-weight:normal;font-family:Arial">No resources found.</MudText>
+                    </NoRecordsContent>
+
+                    <Columns>
+                        <PropertyColumn Property="x => x.IsSelected" Title="Select">
+                            <CellTemplate>
+                                <MudCheckBox T="bool" @bind-Checked="context.Item.IsSelected" />
+                            </CellTemplate>
+                        </PropertyColumn>
+                        <PropertyColumn Property="x => x.Assessment" Title="Assessment" Grouping GroupBy="@_groupBy">
+                         <GroupTemplate>
+                             <span style="font-weight:bold">@context.Grouping.Key</span>
+                        </GroupTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.MetricShortName" Title="Metric ID" />
+                    <PropertyColumn Property="x => x.MetricName" Title="Metric Name" />
+                    <PropertyColumn Property="x => x.PerformanceStandard" Title="Performance Standard" />
+                    <PropertyColumn Property="x => x.Method" Title="Method" />
+                    <PropertyColumn Property="x => x.Tier" Title="Tier" />
+                </Columns>
+
+                @*                     <ChildRowContent>
+                <MudPaper Elevation="0">
+                @if (context.Item != null)
+                {
+                <MudStack Class="" Row="true">
+                <MudText Class="d-flex flex-wrap align-self-center" Style="@GetTypeColor(context.Item)">[@context.Item.Assessment_Class]</MudText>
+                <MudLink Class="d-flex flex-wrap" Style="@GetLinkColor(context.Item)" Href="@context.Item.URL_For_User_Guide" Target="_blank" Color="@GetLink2Color(context.Item)" Underline="@GetHoverableTitleLink(context.Item)">@context.Item.Resource_Name</MudLink>
                 </MudStack>
+                <MudStack Row="true">
+                <MudText Class="d-flex flex-wrap" Style="color:#006621; font-size:13px; font-weight:normal;font-family:Arial">@context.Item.Agency_Or_Organization - @context.Item.Year_Of_Publication_Or_Latest_Update_Int</MudText>
+                </MudStack>
+                <MudText Class="d-flex flex-wrap" Style="color:#222; font-size:13px; font-weight:normal;font-family:Arial">@context.Item.DescriptionClip</MudText>
+                }
+                </MudPaper>
+                </ChildRowContent> *@
+
+                <PagerContent>
+                    <MudDataGridPager Class="gap-0" T="MyAssessmentResource" PageSizeOptions="new int[]{10, 25, 50, 100}" />
+                </PagerContent>
+            </MudDataGrid>
+
+
+
+            <MudStack Row="true" Justify="Justify.FlexEnd">
+                @*                     <MudButton OnClick="@(() => UnselectAllMetrics())" Color="Color.Default" Style="margin-right: auto;">Unselect All</MudButton> *@
+                <MudButton OnClick="@SaveSelectedMetrics" Color="Color.Primary">Save</MudButton>
+                <MudButton OnClick="@CloseEditMetricDialog" Color="Color.Secondary">Cancel</MudButton>
             </MudStack>
+        </MudStack>
 
 
-        </DialogContent>
-        <DialogActions>
+    </DialogContent>
+    <DialogActions>
 
-        </DialogActions>
-    </MudDialog>
+    </DialogActions>
+</MudDialog>
 
 
-    <MudDialog @bind-IsVisible="editScoreDialogVisible" Options="MudDialog1Options">
-        <DialogContent>
-            <MudContainer Style="max-width:90%; height: 80vh;">
-                <div>
-                    <MudText Typo="Typo.h6">Edit Performance Criteria @selectedMetric?.MetricName</MudText>
+<MudDialog @bind-IsVisible="editScoreDialogVisible" Options="MudDialog1Options">
+    <DialogContent>
+        <MudContainer Style="max-width:90%; height: 80vh;">
+            <div>
+                <MudText Typo="Typo.h6">Edit Performance Criteria @selectedMetric?.MetricName</MudText>
                     <MudGrid>
                         <MudItem xs="3">
                             <MudTable Items="lookupTableItems" Hover="true" Bordered="true" Striped="true" Dense="true">
@@ -452,6 +495,113 @@ else
 
 
     @code {
+
+    Func<MetricOption, object> _groupBy = x =>
+    {
+
+    return x.Assessment;
+    };
+
+    private Func<MetricOption, bool> _quickFilter => x =>
+        {
+            if (string.IsNullOrWhiteSpace(_searchString))
+                return true;
+
+            if (x.MetricName.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+                return true;
+            return false;
+        };
+
+
+
+    private MudDataGrid<MetricOption> mudDataGrid;
+    private string _searchString;
+
+    private async void clearFilters()
+    {
+        if (mudDataGrid == null)
+        {
+            return;
+        }
+
+        await mudDataGrid.ClearFiltersAsync();
+    }
+
+    private void openFilters()
+    {
+        if (mudDataGrid == null)
+        {
+            return;
+        }
+
+        mudDataGrid.OpenFilters();
+    }
+
+    private void closeGroups()
+    {
+        if (mudDataGrid == null)
+        {
+            return;
+        }
+
+        mudDataGrid.CollapseAllGroups();
+    }
+    private void expandGroups()
+    {
+        if (mudDataGrid == null)
+        {
+            return;
+        }
+
+        mudDataGrid.ExpandAllGroups();
+    }
+
+
+
+    private string filtersOnStyle()
+    {
+        if (mudDataGrid == null || mudDataGrid.FilterDefinitions.Count() == 0)
+        {
+            return Icons.Material.Outlined.FilterAlt;
+        }
+        else
+        {
+            return Icons.Material.Filled.FilterAlt;
+
+        }
+
+    }
+
+    private void selectedItemChanged(MetricOption selectedItem)
+    {
+        // Handle selected item change logic here
+    }
+
+    private string GetTypeColor(MetricOption item)
+    {
+        // Provide logic to determine the color style for the item
+        return "color: #000;";
+    }
+
+    private string GetLinkColor(MetricOption item)
+    {
+        // Provide logic to determine the color style for the link
+        return "color: #1a0dab;";
+    }
+
+    private string GetLink2Color(MetricOption item)
+    {
+        // Provide logic to determine the color style for the secondary link
+        return "color: #1a0dab;";
+    }
+
+    private bool GetHoverableTitleLink(MetricOption item)
+    {
+        // Determine whether the title link should be hoverable
+        return true;
+    }
+
+
     private string streamModelName = ""; // Initial name for the stream model
     private InputFile importFileInputRef;
     private MudNumericField<double> scoreInput;
@@ -653,8 +803,8 @@ else
             var functionalVariable = new FunctionalVariable
                 {
                     VariableType = Enum.TryParse<FunctionalVariableType>(NormalizeEnumName(streamFunction.FunctionalVariable), true, out var parsedVariable)
-                                                                                                                                        ? parsedVariable
-                                                                                                                                        : FunctionalVariableType.CatchmentHydrology, // Default to CatchmentHydrology if not found
+                                                                                                                                                                        ? parsedVariable
+                                                                                                                                                                        : FunctionalVariableType.CatchmentHydrology, // Default to CatchmentHydrology if not found
                     Metrics = new List<MetricOption>()
                 };
 

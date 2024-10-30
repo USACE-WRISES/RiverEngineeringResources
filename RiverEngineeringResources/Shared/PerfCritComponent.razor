@@ -1,0 +1,334 @@
+﻿@using System.Collections.Generic
+@using MudBlazor
+@inject ISnackbar Snackbar
+
+@if (IsDataLoaded)
+{
+    <MudDialog IsVisible="true" Options="MudDialog1Options">
+        <DialogContent>
+
+            <MudContainer Style="max-width:90%; height: 80vh;">
+                <MudGrid Justify="Justify.Center">
+                    <MudItem>
+                        <MudButton OnClick="@AddNewStratification" Color="Color.Primary">Add Stratification</MudButton>
+                    </MudItem>
+                </MudGrid>
+
+
+                <MudExpansionPanels MultiExpansion="false">
+                    @foreach (var criteria in CriteriaData)
+                    {
+                        <MudExpansionPanel Text="@criteria.Name">
+                            <HeaderContent>
+                                <div Style="display: flex; align-items: center; justify-content: flex-end;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Info" OnClick="@(() => CopyStratification(criteria))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteStratification(criteria))" />
+                                </div>
+                            </HeaderContent>
+
+                            <MudGrid>
+                                <!-- Data Details Above Table -->
+                                <MudItem xs="12">
+                                    <MudPaper Class="pa-4 mb-4" Style="display: flex; flex-direction: column;">
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="Name" @bind-Value="criteria.Name" Variant="Variant.Text" />
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="Description" @bind-Value="criteria.Description" Variant="Variant.Text" />
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="Source" @bind-Value="criteria.SourceName" Variant="Variant.Text" />
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="Source Type" @bind-Value="criteria.SourceType" Variant="Variant.Text" />
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="Data Type" @bind-Value="criteria.DataType" Variant="Variant.Text" />
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="X Axis" @bind-Value="criteria.XName" Variant="Variant.Text" />
+                                        <MudTextField T="string" Margin="Margin.Dense" Label="Y Axis" @bind-Value="criteria.YName" Variant="Variant.Text" />
+                                    </MudPaper>
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <!-- Table to edit X and Y values -->
+                                    <MudTable Items="criteria.ParsedValues" Hover="true" Bordered="true" Striped="true" Dense="true">
+                                        <HeaderContent>
+                                            <MudTh>X (Measurement Value)</MudTh>
+                                            <MudTh>Y (Metric Score)</MudTh>
+                                        </HeaderContent>
+                                        <RowTemplate Context="context">
+                                            <MudTd DataLabel="X">
+                                                <MudNumericField T="double" HideSpinButtons="true" Value="@context.XValue" ValueChanged="@(v => { context.XValue = v; OnLookupTableItemChanged(criteria); })" Variant="Variant.Text" />
+                                            </MudTd>
+                                            <MudTd DataLabel="Y">
+                                                <MudNumericField T="double" HideSpinButtons="true" Value="@context.YValue" ValueChanged="@(v => { context.YValue = v; OnLookupTableItemChanged(criteria); })" Variant="Variant.Text" />
+                                            </MudTd>
+                                            <MudTd>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" OnClick="@(() => RemoveRow(context, criteria))" />
+                                            </MudTd>
+                                        </RowTemplate>
+                                    </MudTable>
+                                    <MudButton OnClick="@(() => AddRow(criteria))" Color="Color.Primary" Style="margin-top:10px;">Add Row</MudButton>
+
+                                </MudItem>
+
+                                <!-- Chart displaying the X and Y values -->
+                                <MudItem xs="9">
+                                    @if (criteria.CanPlot)
+                                    {
+                                        <MudChart ChartType="MudBlazor.ChartType.Line" ChartOptions="chartOptions" XAxisLabels="@criteria.XAxisLabels" ChartSeries="@criteria.ChartData" YAxisTitle="Metric Score" XAxisTitle="Measurement Value" Style="width:100%; height:100%;" />
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body1">Not enough data points to display the chart.</MudText>
+                                    }
+                                </MudItem>
+                                <MudItem xs="12" Style="display:flex; align-items:center; align-content:center">
+                                    <MudStack Row="true">
+                                        <MudStack AlignItems="AlignItems.Center">
+                                            <!-- Input to select X and calculate Y value -->
+                                            <MudText Typo="Typo.h6" Style="margin-top: 20px;">Calculate Y for X Value</MudText>
+                                            <MudNumericField T="double" ValueChanged="@(v => CalculateY(criteria, v))" Label="X Value" Variant="Variant.Outlined" />
+                                            @* <MudButton OnClick="@(() => CalculateY(criteria))" Color="Color.Secondary" Disabled="@(!CanCalculateY(criteria))">Calculate Y</MudButton> *@
+                                            <!-- Display calculated Y value -->
+                                            <MudText Typo="Typo.body1" Style="margin-top: 10px;">Calculated Y Value: @calculatedY.ToString()</MudText>
+                                            </MudStack>
+                                        </MudStack>
+
+                                    </MudItem>
+                                </MudGrid>
+                            </MudExpansionPanel>
+                    }
+                </MudExpansionPanels>
+
+
+                <!-- Dropdown to select active stratification and calculate Y value -->
+                <MudGrid Justify="Justify.Center" Style="margin-top: 20px;">
+                    <MudItem Style="text-align: center;">
+                        <MudSelect T="PerfCritData" Label="Select Stratification" @bind-Value="ActiveStratification" Variant="Variant.Outlined">
+                            <MudSelectItem T="PerfCritData" Value="@(null)">None</MudSelectItem>
+                            @foreach (var criteria in CriteriaData ?? new List<PerfCritData>())
+                            {
+                                <MudSelectItem T="PerfCritData" Value="@criteria">@criteria.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+
+                    </MudItem>
+                </MudGrid>
+
+                <!-- Override Y Value Field -->
+                <MudGrid Justify="Justify.Center" Style="margin-top: 10px;">
+                    <MudItem>
+                        <MudStack Row="true">
+                            @if (ActiveStratification != null)
+                            {
+                                <MudStack>
+                                    <MudNumericField T="double" HideSpinButtons="true" @bind-Value="ActiveStratification.SelectedX" Label="X Value" Variant="Variant.Outlined" />
+                                    <MudButton OnClick="@(() => CalculateY(ActiveStratification, ActiveStratification.SelectedX,true))" Color="Color.Secondary" Style="margin-left: 20px;" Disabled="@(ActiveStratification == null)">Calculate Y</MudButton>
+                                </MudStack>
+
+                                <MudTextField T="double" @bind-Value="ActiveStratification.OverrideY" Label="Override Y Value" Variant="Variant.Outlined" />
+                            }
+
+                        </MudStack>
+
+                    </MudItem>
+                </MudGrid>
+
+            </MudContainer>
+
+        </DialogContent>
+    </MudDialog>
+}
+else
+{
+    <MudGrid Justify="Justify.Center">
+        <MudItem>
+            Loading...
+        </MudItem>
+    </MudGrid>
+}
+
+
+@code {
+
+    private double calculatedY;
+
+    // Have a default active stratificatoin with name set to "None"
+    private PerfCritData ActiveStratification { get; set; } = null;
+
+    private DialogOptions MudDialog1Options = new DialogOptions { MaxWidth = MaxWidth.ExtraExtraLarge, FullWidth = true }; /* MaxWidth = MaxWidth.ExtraLarge, FullWidth = true */
+
+    private bool firstRender = true;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Snackbar.Configuration.PositionClass = Defaults.Classes.Position.TopCenter;
+            Snackbar.Configuration.VisibleStateDuration = 1000;
+            Snackbar.Configuration.ShowTransitionDuration = 500;
+            Snackbar.Configuration.HideTransitionDuration = 500;
+        }
+    }
+
+    [Parameter]
+    public bool IsDataLoaded { get; set; } = false;
+
+    [Parameter]
+    public List<PerfCritData> CriteriaData { get; set; } = new List<PerfCritData>();
+
+
+    private ChartOptions chartOptions = new ChartOptions
+        {
+            YAxisTicks = 10
+        };
+
+    // Method to add a new row to a specific criteria
+    private void AddRow(PerfCritData criteria)
+    {
+        criteria.ParsedValues.Add(new DataPoint(0, 0));
+        StateHasChanged();
+    }
+
+    // Method to remove a row from a specific criteria
+    private void RemoveRow(DataPoint item, PerfCritData criteria)
+    {
+        criteria.ParsedValues.Remove(item);
+        StateHasChanged();
+    }
+
+    // Method called when data changes in the table
+    private void OnLookupTableItemChanged(PerfCritData criteria)
+    {
+        StateHasChanged(); // Update chart and calculations
+    }
+
+    // Method to determine if Y value calculation can be performed
+    private bool CanCalculateY(PerfCritData criteria)
+    {
+        return criteria.ParsedValues.Count >= 2;
+    }
+
+    // Method to calculate the Y value for a given X using interpolation
+    private void CalculateY(PerfCritData criteria, double xValue, bool updateStoredValue = false)
+    {
+        if (criteria == null || criteria.ParsedValues.Count < 2)
+        {
+            calculatedY = double.NaN; // Not enough points to interpolate
+            if (updateStoredValue == true)
+            {
+                criteria.OverrideY = calculatedY; // Update the override field
+            }
+            return;
+        }
+
+        var sortedItems = criteria.ParsedValues.OrderBy(item => item.XValue).ToList();
+
+        //if the selected X is less than the smallest X value, then set Y equal to the first Y value
+        if (xValue <= sortedItems[0].XValue)
+        {
+            calculatedY = sortedItems[0].YValue;
+            //criteria.OverrideY = criteria.CalculatedY; // Update the override field
+            if (updateStoredValue == true)
+            {
+                criteria.OverrideY = calculatedY; // Update the override field
+            }
+            return;
+        }
+
+        //if the selected X is greater than the largest X value, then set Y equal to the largest Y value
+        if (xValue >= sortedItems[sortedItems.Count - 1].XValue)
+        {
+            calculatedY = sortedItems[sortedItems.Count - 1].YValue;
+            criteria.OverrideY = calculatedY; // Update the override field
+            if (updateStoredValue == true)
+            {
+                criteria.OverrideY = calculatedY; // Update the override field
+            }
+            return;
+        }
+
+        // Find two points that bracket the selected X
+        for (int i = 0; i < sortedItems.Count - 1; i++)
+        {
+            var x1 = sortedItems[i].XValue;
+            var y1 = sortedItems[i].YValue;
+            var x2 = sortedItems[i + 1].XValue;
+            var y2 = sortedItems[i + 1].YValue;
+
+            if (xValue >= x1 && xValue <= x2)
+            {
+                // Perform linear interpolation
+                calculatedY = y1 + (xValue - x1) * (y2 - y1) / (x2 - x1);
+                if (updateStoredValue == true)
+                {
+                    criteria.OverrideY = calculatedY; // Update the override field
+                }
+                return;
+            }
+        }
+
+        // If no interpolation was done, set calculatedY to NaN (out of range)
+        if (updateStoredValue == true)
+        {
+            criteria.OverrideY = calculatedY; // Update the override field
+        }
+        calculatedY = double.NaN;
+    }
+
+    // Method to add a new stratification to the list
+    private void AddNewStratification()
+    {
+        string baseName = "New Stratification";
+        string newName = baseName;
+        int copyNumber = 1;
+
+        // Ensure the new name is unique
+        while (CriteriaData.Any(c => c.Name == newName))
+        {
+            newName = $"{baseName} {copyNumber}";
+            copyNumber++;
+        }
+
+        CriteriaData.Add(new PerfCritData
+            {
+                Name = newName,
+                Description = "Description",
+                SourceType = "Source Type",
+                SourceName = "Source Name",
+                DataType = "Quantitative",
+                XName = "X Axis",
+                YName = "Y Axis",
+                Values = "0,0"
+            });
+        StateHasChanged();
+    }
+
+    // Method to create a copy of an existing stratification
+    private void CopyStratification(PerfCritData criteria)
+    {
+        string baseName = criteria.Name + " (Copy)";
+        string newName = baseName;
+        int copyNumber = 1;
+
+        // Ensure the new name is unique
+        while (CriteriaData.Any(c => c.Name == newName))
+        {
+            newName = $"{baseName} {copyNumber}";
+            copyNumber++;
+        }
+
+        CriteriaData.Add(new PerfCritData
+            {
+                Name = newName,
+                Description = criteria.Description,
+                SourceType = criteria.SourceType,
+                SourceName = criteria.SourceName,
+                DataType = criteria.DataType,
+                XName = criteria.XName,
+                YName = criteria.YName,
+                Values = criteria.Values
+            });
+        StateHasChanged();
+        Snackbar.Add("Added stratification to bottom of list.", Severity.Normal);
+
+    }
+
+    // Method to delete an existing stratification
+    private void DeleteStratification(PerfCritData criteria)
+    {
+        CriteriaData.Remove(criteria);
+        StateHasChanged();
+    }
+
+}

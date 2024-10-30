@@ -16,5 +16,6 @@ builder.Services.AddMudServices();
 builder.Services.AddSingleton<ClipboardService>();
 builder.Services.AddSingleton<SharedData>();
 builder.Services.AddSingleton<SharedFunctions>();
+builder.Services.AddScoped<PerformanceCriteriaService>(); //Add scoped behaves similar to add singleton in blazor wasm, over lifetime
 
 await builder.Build().RunAsync();

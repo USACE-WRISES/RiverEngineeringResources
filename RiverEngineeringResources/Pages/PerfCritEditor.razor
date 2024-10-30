@@ -1,0 +1,121 @@
+﻿@page "/pce"
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@using System.Net.Http.Json
+@using System.Text.Json
+@using System.Text.RegularExpressions
+@using CsvHelper
+@using CsvHelper.Configuration
+@using System.Globalization
+@using System.IO
+@inject HttpClient httpClient
+@using RiverEngineeringResources.Shared
+@inject SharedData SharedData
+@inject SharedFunctions SharedFunctions
+@implements IAsyncDisposable
+@inject PerformanceCriteriaService CriteriaService
+
+<PageTitle>Performance Criteria Editor</PageTitle>
+
+<style>
+    input {
+        outline: 0;
+        border-width: 0 0 1px;
+        border-color: darkgray
+    }
+
+        input:focus {
+            border-color: dodgerblue;
+            border-width: 0 0 2px;
+            outline: 1px dotted #ffffff
+        }
+</style>
+<style>
+    .selected {
+        background-color: #1E88E5 !important;
+    }
+
+        .selected > td {
+            color: white !important;
+        }
+
+            .selected > td .mud-input {
+                color: white !important;
+            }
+</style>
+
+
+<MudPaper Elevation="0" Class="d-flex flex-row flex-grow-1 gap-4 mx-n16" Outlined="false">
+
+    <PerfCritComponent CriteriaData="criteriaData" IsDataLoaded="isDataLoaded"/>
+
+</MudPaper>
+
+
+
+@code {
+    private List<PerfCritData> criteriaData;
+    private bool isDataLoaded = false;
+    private PerfCritComponent perfCritCompRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        SharedData.SetSTAFPageSelected();
+    }
+
+    private bool _hasInitialized = false;
+
+    private async Task LoadData()
+    {
+        // Fetch the CSV file as a string
+        var csvContent = await Http.GetStringAsync("sample-data/perfcriteriadata.csv");
+
+        // Fetch and parse the CSV file data
+        criteriaData = await CriteriaService.ReadCsvAsync(csvContent);
+
+        isDataLoaded = true;
+        StateHasChanged(); // Notify the UI that the data has been loaded
+    }
+
+    private IJSObjectReference? module;
+    private IJSObjectReference? _chartReference;
+    private string? result;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./assess.js");
+            if (module != null)
+            {
+                result = await module.InvokeAsync<string>("load");
+                await module.InvokeVoidAsync("initializeDotnetHelper", DotNetObjectReference.Create(this));
+
+            }
+        }
+
+        if (firstRender && !_hasInitialized)
+        {
+            //SharedData.SetSTAFPageSelected();
+
+            await LoadData();
+            _hasInitialized = true;
+        }
+
+
+    }
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (module is not null)
+        {
+            await module.DisposeAsync();
+        }
+    }
+
+}
+
+
+
+
+
+
+
