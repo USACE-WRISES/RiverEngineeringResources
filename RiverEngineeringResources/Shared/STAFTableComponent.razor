@@ -371,7 +371,7 @@ else
                         <MudLink OnClick="@(args => ToggleSelectAllMetrics(filteredMetricOptionsForDialog,false))" Class="ml-2" Style="cursor:pointer;font-size:medium">Unselect All</MudLink>
                     </MudText>
                 </MudPaper>
-                <MudDataGrid ReadOnly="false" EditMode="DataGridEditMode.Form" Elevation="0" Style="column-fill:balance-all; width:100%; heigth:100%" T="MetricOption" @ref="mudDataGrid" Items="filteredMetricOptionsForDialog" SortMode="SortMode.Single" Filterable="true" FilterMode="DataGridFilterMode.ColumnFilterMenu" FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive" ShowFilterIcons="true" QuickFilter="@_quickFilter"
+                <MudDataGrid GroupExpanded="true" ReadOnly="false" EditMode="DataGridEditMode.Form" Elevation="0" Style="column-fill:balance-all; width:100%; heigth:100%; flex-grow: 1;" T="MetricOption" @ref="mudDataGrid" Items="filteredMetricOptionsForDialog" SortMode="SortMode.Single" Filterable="true" FilterMode="DataGridFilterMode.ColumnFilterMenu" FilterCaseSensitivity="DataGridFilterCaseSensitivity.CaseInsensitive" ShowFilterIcons="true" QuickFilter="@_quickFilter"
                              Hideable="false" Groupable="true" DragDropColumnReordering="true" DragIndicatorIcon="" DragIndicatorSize="0" HorizontalScrollbar="true" Outlined="true" SelectedItemChanged="@selectedItemChanged" Dense="true" Bordered="true" Striped="true" Hover="true" Virtualize="false" FixedHeader="false" ShowMenuIcon="true">
                     <ToolBarContent>
                         <MudGrid Style="width: 100%;">
@@ -1865,11 +1865,11 @@ else
                     // Average metric score for the variable
                     if (tableItem.Variable.IsSelected)
                     {
-                        worksheet.Cell(row, 5).FormulaA1 = "AVERAGE(D" + trackingFirstRowOfVariable + " :D" + (row) + ")";
+                        worksheet.Cell(row, 5).FormulaA1 = "IF(COUNTBLANK(D" + trackingFirstRowOfVariable + ":D" + row + ") > 0, \"-\", AVERAGE(D" + trackingFirstRowOfVariable + ":D" + row + "))";
                     }
                     else
                     {
-                        worksheet.Cell(row, 5).FormulaA1 = "=NA()";
+                        worksheet.Cell(row, 5).Value = "-";
                     }
 
 
@@ -1883,11 +1883,11 @@ else
                     // Physical
                     if (physicalOption == "D")
                     {
-                        worksheet.Cell(row, 6).FormulaA1 = $"=CONCATENATE(\"D (\", E{row}, \")\")";
+                        worksheet.Cell(row, 6).FormulaA1 = $"IF(E{row}=\"-\", \"D\", \"D (\" & ROUND(E{row}, 2) & \")\")";
                     }
                     else if (physicalOption == "i")
                     {
-                        worksheet.Cell(row, 6).FormulaA1 = $"=CONCATENATE(\"i (\", E{row}*0.25, \")\")";
+                        worksheet.Cell(row, 6).FormulaA1 = $"IF(E{row}=\"-\", \"i\", \"i (\" & ROUND(E{row}*0.25, 2) & \")\")";
                     }
                     else
                     {
@@ -1897,11 +1897,11 @@ else
                     // Chemical
                     if (chemicalOption == "D")
                     {
-                        worksheet.Cell(row, 7).FormulaA1 = $"=CONCATENATE(\"D (\", E{row}, \")\")";
+                        worksheet.Cell(row, 7).FormulaA1 = $"IF(E{row}=\"-\", \"D\", \"D (\" & ROUND(E{row}, 2) & \")\")";
                     }
                     else if (chemicalOption == "i")
                     {
-                        worksheet.Cell(row, 7).FormulaA1 = $"=CONCATENATE(\"i (\", E{row}*0.25, \")\")";
+                        worksheet.Cell(row, 7).FormulaA1 = $"IF(E{row}=\"-\", \"i\", \"i (\" & ROUND(E{row}*0.25, 2) & \")\")";
                     }
                     else
                     {
@@ -1911,11 +1911,11 @@ else
                     // Biological
                     if (biologicalOption == "D")
                     {
-                        worksheet.Cell(row, 8).FormulaA1 = $"=CONCATENATE(\"D (\", E{row}, \")\")";
+                        worksheet.Cell(row, 8).FormulaA1 = $"IF(E{row}=\"-\", \"D\", \"D (\" & ROUND(E{row}, 2) & \")\")";
                     }
                     else if (biologicalOption == "i")
                     {
-                        worksheet.Cell(row, 8).FormulaA1 = $"=CONCATENATE(\"i (\", E{row}*0.25, \")\")";
+                        worksheet.Cell(row, 8).FormulaA1 = $"IF(E{row}=\"-\", \"i\", \"i (\" & ROUND(E{row}*0.25, 2) & \")\")";
                     }
                     else
                     {
@@ -1925,6 +1925,16 @@ else
                 }
                 else
                 {
+                    // Average metric score for the variable across the new row
+                    if (tableItem.Variable.IsSelected)
+                    {
+                        worksheet.Cell(trackingFirstRowOfVariable, 5).FormulaA1 = $"IF(COUNTBLANK(D" + trackingFirstRowOfVariable + ":D" + row + ") > 0, \"-\", AVERAGE(D" + trackingFirstRowOfVariable + ":D" + row + "))";
+                    }
+                    else
+                    {
+                        worksheet.Cell(trackingFirstRowOfVariable, 5).Value = "-";
+                    }
+
                     // Merge the functional variable cell with the row above it
                     worksheet.Range(trackingFirstRowOfVariable, 2, row, 2).Merge();
 
@@ -2037,16 +2047,16 @@ else
             worksheet.Cell(row + 1, 5).Value = "Direct Effect";
             worksheet.Cell(row + 1, 5).Style.Font.Bold = true;
             worksheet.Cell(row + 1, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
-            worksheet.Cell(row + 1, 6).FormulaA1 = "=COUNTIF(F2:F" + (row - 1) + ", \"D*\")";
-            worksheet.Cell(row + 1, 7).FormulaA1 = "=COUNTIF(G2:G" + (row - 1) + ", \"D*\")";
-            worksheet.Cell(row + 1, 8).FormulaA1 = "=COUNTIF(H2:H" + (row - 1) + ", \"D*\")";
+            worksheet.Cell(row + 1, 6).FormulaA1 = "=COUNTIF(F2:F" + (row - 1) + ", \"D (*\")";
+            worksheet.Cell(row + 1, 7).FormulaA1 = "=COUNTIF(G2:G" + (row - 1) + ", \"D (*\")";
+            worksheet.Cell(row + 1, 8).FormulaA1 = "=COUNTIF(H2:H" + (row - 1) + ", \"D (*\")";
 
             worksheet.Cell(row + 2, 5).Value = "Indirect Effect";
             worksheet.Cell(row + 2, 5).Style.Font.Bold = true;
             worksheet.Cell(row + 2, 5).Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Right;
-            worksheet.Cell(row + 2, 6).FormulaA1 = "=COUNTIF(F2:F" + (row - 1) + ", \"i*\")";
-            worksheet.Cell(row + 2, 7).FormulaA1 = "=COUNTIF(G2:G" + (row - 1) + ", \"i*\")";
-            worksheet.Cell(row + 2, 8).FormulaA1 = "=COUNTIF(H2:H" + (row - 1) + ", \"i*\")";
+            worksheet.Cell(row + 2, 6).FormulaA1 = "=COUNTIF(F2:F" + (row - 1) + ", \"i (*\")";
+            worksheet.Cell(row + 2, 7).FormulaA1 = "=COUNTIF(G2:G" + (row - 1) + ", \"i (*\")";
+            worksheet.Cell(row + 2, 8).FormulaA1 = "=COUNTIF(H2:H" + (row - 1) + ", \"i (*\")";
 
             // Set formulas for calculating maximum possible scores in Physical, Chemical, and Biological columns
             worksheet.Cell(row + 3, 5).Value = "Max Score";
