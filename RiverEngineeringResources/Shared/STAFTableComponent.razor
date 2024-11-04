@@ -1332,6 +1332,8 @@ else
 
     private void SaveScore()
     {
+
+        UpdateTableItems();
         editScoreDialogVisible = false;
         originalScore = null; // Clear original score after saving
     }
@@ -1362,6 +1364,7 @@ else
             }
         }
 
+        UpdateTableItems();
         editVariableDialogVisible = false;
 
     }
@@ -1398,6 +1401,8 @@ else
                 }
             }
         }
+
+        UpdateTableItems();
         editMetricDialogVisible = false;
 
     }
