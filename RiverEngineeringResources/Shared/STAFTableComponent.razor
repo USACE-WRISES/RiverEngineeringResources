@@ -88,18 +88,15 @@
 
 
 
-
-
-
 @if (isDataLoaded)
 {
     <MudStack Class="pb-6" Spacing="0" Style="width:100%;">
-        <MudPaper Elevation="0" Class="d-flex justify-end my-4">
-            <MudText Typo="Typo.subtitle1" Align="Align.Center">
+
+        <MudPaper Elevation="0" Class="d-flex justify-end mb-3">
+            <MudText Typo="Typo.caption" Align="Align.Center">
                 Last Published Date: @DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt")
             </MudText>
         </MudPaper>
-
 
         <MudPaper Elevation="0" Class="d-flex flex-row justify-center relative align-end">
             <MudPaper Elevation="0" Style="position:absolute">
@@ -347,7 +344,7 @@ else
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd DataLabel="Select">
-                            <MudCheckBox T="bool" Checked="@SelectedVariables.Contains(@context.FunctionalVariable.ToString())" CheckedChanged="@((bool value) => OnVariableSelectionChanged(@context, value))" />
+                            <MudCheckBox T="bool" @bind-Checked="@context.IsSelected" />
                         </MudTd>
                         <MudTd DataLabel="Functional Variable">@context.FunctionalVariable</MudTd>
                         <MudTd DataLabel="Functional Statement">@context.FunctionalStatement</MudTd>
@@ -504,35 +501,12 @@ else
 
 
     @code {
-    private HashSet<string> SelectedVariables { get; set; } = new HashSet<string>();
-
-    void OpenVariableSelectionDialog()
-    {
-        // When opening the dialog, create a new hashset for the ParentSelectedVariables based on which variables are selected from the functionalVariable options
-        SelectedVariables = new HashSet<string>(functionalVariableSelectableOptions
-            .Where(option => option.IsSelected)
-            .Select(option => option.FunctionalVariable.ToString()));
-
-    }
-
-    void OnVariableSelectionChanged(FunctionalVariableOption variable, bool isSelected)
-    {
-        if (isSelected)
-        {
-            SelectedVariables.Add(variable.FunctionalVariable.ToString());
-        }
-        else
-        {
-            SelectedVariables.Remove(variable.FunctionalVariable.ToString());
-        }
-    }
-
 
 
     Func<MetricOption, object> _groupBy = x =>
     {
 
-        return x.Assessment;
+    return x.Assessment;
     };
 
     private Func<MetricOption, bool> _quickFilter => x =>
@@ -753,7 +727,7 @@ else
         chartOptions.YAxisTicks = 1;
         chartOptions.MaxNumYAxisTicks = 5;
 
-        StateHasChanged();
+        //StateHasChanged();
         // chartOptions.XAxisLabels = lookupTableItems.Select(item => item.XValue.ToString()).ToList();
     }
 
@@ -836,8 +810,8 @@ else
             var functionalVariable = new FunctionalVariable
                 {
                     VariableType = Enum.TryParse<FunctionalVariableType>(NormalizeEnumName(streamFunction.FunctionalVariable), true, out var parsedVariable)
-                                                                                                                                                                                            ? parsedVariable
-                                                                                                                                                                                            : FunctionalVariableType.CatchmentHydrology, // Default to CatchmentHydrology if not found
+                                                                                                                                                                        ? parsedVariable
+                                                                                                                                                                        : FunctionalVariableType.CatchmentHydrology, // Default to CatchmentHydrology if not found
                     Metrics = new List<MetricOption>()
                 };
 
@@ -1293,6 +1267,8 @@ else
 
     private void OnEditCategoryClick(FunctionalCategoryItem categoryItem)
     {
+        
+
         selectedCategoryItem = categoryItem;
 
         // Filter options to only show those related to the selected category
@@ -1303,12 +1279,13 @@ else
         {
             option.IsSelected = categoryItem.FunctionalVariables.Any(v => v.VariableType == option.FunctionalVariable && v.IsSelected);
         }
-        OpenVariableSelectionDialog();
+
         editVariableDialogVisible = true;
     }
 
     private void OnEditVariableClick(FunctionalVariable variable)
     {
+
         selectedCategoryItem = functionalCategoryItems.FirstOrDefault(category => category.FunctionalVariables.Contains(variable));
 
         // Filter options to only show those related to the selected category
@@ -1322,7 +1299,7 @@ else
             option.IsSelected = selectedCategoryItem.FunctionalVariables
                 .Any(v => v.VariableType == option.FunctionalVariable && v.IsSelected);
         }
-        OpenVariableSelectionDialog();
+
         editVariableDialogVisible = true;
     }
 
@@ -1361,16 +1338,6 @@ else
 
     private void SaveSelectedVariables()
     {
-        // Copy changes from the dialog state to the main table state
-        //ParentSelectedVariables = new HashSet<string>(SelectedVariables);
-
-        // Copy changes from the dialog state to the main table state
-        foreach (var option in functionalVariableSelectableOptions)
-        {
-            // Set the selected state based on presence in the SelectedVariables list
-            option.IsSelected = SelectedVariables.Contains(option.FunctionalVariable.ToString());
-        }
-
         if (selectedCategoryItem != null)
         {
             selectedCategoryItem.FunctionalVariables.Clear();
@@ -1394,6 +1361,7 @@ else
                 }
             }
         }
+
         editVariableDialogVisible = false;
 
     }
