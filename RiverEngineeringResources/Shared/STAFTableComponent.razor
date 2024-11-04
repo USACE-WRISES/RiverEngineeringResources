@@ -94,7 +94,7 @@
 
         <MudPaper Elevation="0" Class="d-flex justify-end mb-3">
             <MudText Typo="Typo.caption" Align="Align.Center">
-                Last Published Date: @DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt")
+                Last Published Date: 2024-11-04 1014 @* @DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") *@
             </MudText>
         </MudPaper>
 
@@ -157,7 +157,7 @@
                 {
                     <MudTd Style="@(context.Variable.IsSelected ? "border-color:black;" : "border-color:black; background-color:lightgray;")" DataLabel="Functional Variable" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
                         <MudStack Row="true" AlignItems="AlignItems.Center">
-                            <MudCheckBox T="bool" DisableRipple="true" Dense="true" Size="Size.Small" @bind-Checked="@context.Variable.IsSelected" Style="margin-right: 8px;" />
+                            <MudCheckBox T="bool" DisableRipple="true" Dense="true" Size="Size.Small" Style="margin-right: 8px;" /> @* @bind-Checked="@context.Variable.IsSelected" *@
                             <MudText Class="clickabletext" @onclick="@(() => OnEditMetricClick(@context.Variable))">@GetFormattedVariableType(@context.Variable.VariableType)</MudText>
                             </MudStack>
                         </MudTd>
