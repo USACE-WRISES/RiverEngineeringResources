@@ -94,7 +94,7 @@
 
         <MudPaper Elevation="0" Class="d-flex justify-end mb-3">
             <MudText Typo="Typo.caption" Align="Align.Center">
-                Last Published Date: 2024-11-04 1014 @* @DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") *@
+                Last Published Date: 2024-11-04 1033 @* @DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt") *@
             </MudText>
         </MudPaper>
 
@@ -131,7 +131,7 @@
         </MudPaper>
 
 
-        <MudTable Items="@(GetTableItems())" Dense="true" Hover="true" Bordered="true" Striped="true" RowStyleFunc="RowStyleFunc" Style="width:100%;">
+        <MudTable Items="@(GetTableItems())" Dense="true" Hover="true" Bordered="true" Striped="true" Style="width:100%;"> @* RowStyleFunc="RowStyleFunc"  *@
             <HeaderContent>
                 <MudTh Class="header-font-size" Style="vertical-align:bottom">Functional Category</MudTh>
                 <MudTh Class="header-font-size" Style="vertical-align:bottom">Functional Variable</MudTh>
@@ -157,7 +157,7 @@
                 {
                     <MudTd Style="@(context.Variable.IsSelected ? "border-color:black;" : "border-color:black; background-color:lightgray;")" DataLabel="Functional Variable" RowSpan="@(GetRowSpanForVariable(@context.Variable))">
                         <MudStack Row="true" AlignItems="AlignItems.Center">
-                            <MudCheckBox T="bool" DisableRipple="true" Dense="true" Size="Size.Small" Style="margin-right: 8px;" /> @* @bind-Checked="@context.Variable.IsSelected" *@
+                            <MudCheckBox T="bool" DisableRipple="true" Dense="true" Size="Size.Small" @bind-Checked="@context.Variable.IsSelected" Style="margin-right: 8px;" /> @* @bind-Checked="@context.Variable.IsSelected" *@
                             <MudText Class="clickabletext" @onclick="@(() => OnEditMetricClick(@context.Variable))">@GetFormattedVariableType(@context.Variable.VariableType)</MudText>
                             </MudStack>
                         </MudTd>
@@ -501,7 +501,7 @@ else
 
 
     @code {
-
+    private List<TableItem> tableItems;
 
     Func<MetricOption, object> _groupBy = x =>
     {
@@ -1267,7 +1267,7 @@ else
 
     private void OnEditCategoryClick(FunctionalCategoryItem categoryItem)
     {
-        
+
 
         selectedCategoryItem = categoryItem;
 
@@ -1473,9 +1473,17 @@ else
         public MetricOption Metric { get; set; }
     }
 
-    private List<TableItem> GetTableItems()
+
+
+    private void UpdateTableItems()
     {
-        var tableItems = new List<TableItem>();
+        tableItems = GenerateTableItems();
+        StateHasChanged();
+    }
+
+    private List<TableItem> GenerateTableItems()
+    {
+        var newTableItems = new List<TableItem>();
 
         foreach (var category in functionalCategoryItems)
         {
@@ -1483,21 +1491,51 @@ else
             {
                 if (variable.Metrics.Count == 0)
                 {
-                    tableItems.Add(new TableItem { Category = category, Variable = variable, Metric = new MetricOption() });
+                    newTableItems.Add(new TableItem { Category = category, Variable = variable, Metric = new MetricOption() });
                 }
                 else
                 {
                     foreach (var metric in variable.Metrics)
                     {
-                        tableItems.Add(new TableItem { Category = category, Variable = variable, Metric = metric });
+                        newTableItems.Add(new TableItem { Category = category, Variable = variable, Metric = metric });
                     }
                 }
             }
         }
 
+        return newTableItems;
+    }
 
+    private List<TableItem> GetTableItems()
+    {
         return tableItems;
     }
+
+    // private List<TableItem> GetTableItems()
+    // {
+    //     var tableItems = new List<TableItem>();
+
+    //     foreach (var category in functionalCategoryItems)
+    //     {
+    //         foreach (var variable in category.FunctionalVariables)
+    //         {
+    //             if (variable.Metrics.Count == 0)
+    //             {
+    //                 tableItems.Add(new TableItem { Category = category, Variable = variable, Metric = new MetricOption() });
+    //             }
+    //             else
+    //             {
+    //                 foreach (var metric in variable.Metrics)
+    //                 {
+    //                     tableItems.Add(new TableItem { Category = category, Variable = variable, Metric = metric });
+    //                 }
+    //             }
+    //         }
+    //     }
+
+
+    //     return tableItems;
+    // }
 
 
     private MyStreamModelFunction[]? MyStreamModelFunctionArray;
@@ -1569,7 +1607,8 @@ else
         LoadMetricsFromToolboxMetrics();
 
         isDataLoaded = true;
-        StateHasChanged();
+
+        UpdateTableItems();
     }
 
 
