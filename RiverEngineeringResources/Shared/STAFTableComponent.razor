@@ -225,9 +225,9 @@
                             <MudText>@GetPhysicalSubIndex(false, false, true, false, false)</MudText>
                         </div>
                         <div class="subindex-container">
-                            @if (@GetSubIndexScore("Physical", GetPhysicalSubIndex()) == "No Scores")
+                            @if (@GetSubIndexScore("Physical", GetPhysicalSubIndex()) == "-")
                         {
-                            <MudText>No Scores</MudText>
+                            <MudText>-</MudText>
                         }
                         else
                         {
@@ -252,9 +252,9 @@
                             <MudText>@GetChemicalSubIndex(false, false, true, false, false)</MudText>
                         </div>
                         <div class="subindex-container">
-                            @if (@GetSubIndexScore("Chemical", GetChemicalSubIndex()) == "No Scores")
+                            @if (@GetSubIndexScore("Chemical", GetChemicalSubIndex()) == "-")
                         {
-                            <MudText>No Scores</MudText>
+                            <MudText>-</MudText>
                         }
                         else
                         {
@@ -264,9 +264,9 @@
 
 
                     <div>
-                        @if (GetEcosystemConditionIndexOrMissing() == "Missing Sub-Indices")
+                        @if (GetEcosystemConditionIndexOrMissing() == "-")
                         {
-                            <MudText>Missing Sub-Indices</MudText>
+                            <MudText>-</MudText>
                         }
                         else
                         {
@@ -288,9 +288,9 @@
                             <MudText>@GetBiologicalSubIndex(false, false, true, false, false)</MudText>
                         </div>
                         <div class="subindex-container">
-                            @if (@GetSubIndexScore("Biological", GetBiologicalSubIndex()) == "No Scores")
+                            @if (@GetSubIndexScore("Biological", GetBiologicalSubIndex()) == "-")
                         {
-                            <MudText>No Scores</MudText>
+                            <MudText>-</MudText>
                         }
                         else
                         {
@@ -1212,7 +1212,7 @@ else
 
     private string GetSubIndexScore(string type, double subIndexScore)
     {
-        return functionalCategoryItems.Any(category => category.FunctionalVariables.Any(variable => variable.Metrics.Count > 0 && (GetFunctionalVariableOption(variable.VariableType).GetType().GetProperty(type).GetValue(GetFunctionalVariableOption(variable.VariableType)) as string == "D" || GetFunctionalVariableOption(variable.VariableType).GetType().GetProperty(type).GetValue(GetFunctionalVariableOption(variable.VariableType)) as string == "i"))) ? subIndexScore.ToString() : "No Scores";
+        return functionalCategoryItems.Any(category => category.FunctionalVariables.Any(variable => variable.Metrics.Count > 0 && (GetFunctionalVariableOption(variable.VariableType).GetType().GetProperty(type).GetValue(GetFunctionalVariableOption(variable.VariableType)) as string == "D" || GetFunctionalVariableOption(variable.VariableType).GetType().GetProperty(type).GetValue(GetFunctionalVariableOption(variable.VariableType)) as string == "i"))) ? subIndexScore.ToString() : "-";
     }
 
     private string GetEcosystemConditionIndexOrMissing()
@@ -1223,7 +1223,7 @@ else
 
         if (double.IsNaN(physicalSubIndex) || double.IsNaN(chemicalSubIndex) || double.IsNaN(biologicalSubIndex))
         {
-            return "Missing Sub-Indices";
+            return "-";
         }
         else
         {
