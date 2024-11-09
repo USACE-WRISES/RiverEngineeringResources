@@ -1,0 +1,4 @@
+PCS Name,PCS Description,PCS Source Type,PCS Source Name,PCS Data Type,PCS X Data Name,PCS Y Data Name,PCS Values
+ High Gradient Streams, This is a description for this performance critera., User, User projects, Quantitative, Ground Cover, Index," 0,0 10,1"
+Mid Gradient, This is a description for this performance critera., User, User projects,Semi-Quantitative, Ground Cover, Index," ""Low ground cover"",0 ""High ground cover"",1"
+Low Gradient Streams, This is a description for this performance critera., User, User projects,Semi-Quantitative, Ground Cover, Index," ""Low ground cover"",""0-0.25"" ""High ground cover"",""0.25-1"""
