@@ -167,7 +167,10 @@
                                                     </MudTd>
 
                                                     <MudTd Class="nonclickabletext;" Style="@(context.Variable.IsSelected ? "border-color:black; text-align:start;" : "border-color:black; background-color:lightgray; text-align:start;")" DataLabel="Description">
-                                                        @(context.GetFunctionalVariableStatement(functionalVariableSelectableOptions))
+                                                        <MudText Class="nonclickabletext;">
+                                                            @(context.GetFunctionalVariableStatement(functionalVariableSelectableOptions))
+                                                        </MudText>
+                                                        
                                                     </MudTd>
 
                                                     <MudTd Class="nonclickabletext" Style="@(context.Variable.IsSelected ? "border-color:black; text-align:center;" : "border-color:black; background-color:lightgray; text-align:center;")" DataLabel="Physical">
@@ -200,26 +203,26 @@
                                                 </MudTd>
                                                 <MudTd Style="text-align:center; border-color:black; vertical-align:top;">
                                                     <div class="subindex-container">
-                                                        <MudText>@GetPhysicalSubIndex(false, false, false, true, false, false)</MudText>
+                                                        <MudText>@GetPhysicalSubIndex(false, false, false, true, false, true, false)</MudText>
                                                     </div>
                                                     <div class="subindex-container">
-                                                        <MudText>@GetPhysicalSubIndex(false, false, false, false, true, false)</MudText>
+                                                        <MudText>@GetPhysicalSubIndex(false, false, false, false, true, true, false)</MudText>
                                                     </div>
                                                 </MudTd>
                                                 <MudTd Class="nonclickabletext" Style="text-align:center; border-color:black; vertical-align:middle;">
                                                     <div class="subindex-container">
-                                                        <MudText>@GetChemicalSubIndex(false, false, false, true, false, false)</MudText>
+                                                        <MudText>@GetChemicalSubIndex(false, false, false, true, false, true, false)</MudText>
                                                     </div>
                                                     <div class="subindex-container">
-                                                        <MudText>@GetChemicalSubIndex(false, false, false, false, true, false)</MudText>
+                                                        <MudText>@GetChemicalSubIndex(false, false, false, false, true, true, false)</MudText>
                                                     </div>
                                                 </MudTd>
                                                 <MudTd Style="text-align:center; border-color:black; vertical-align:top;">
                                                     <div class="subindex-container">
-                                                        <MudText>@GetBiologicalSubIndex(false, false, false, true, false, false)</MudText>
+                                                        <MudText>@GetBiologicalSubIndex(false, false, false, true, false, true, false)</MudText>
                                                     </div>
                                                     <div class="subindex-container">
-                                                        <MudText>@GetBiologicalSubIndex(false, false, false, false, true, false)</MudText>
+                                                        <MudText>@GetBiologicalSubIndex(false, false, false, false, true, true, false)</MudText>
                                                     </div>
                                                 </MudTd>
                                             </FooterContent>
@@ -1217,7 +1220,7 @@ else
 
 
 
-    private double GetPhysicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false, bool ignoreVarUnselectedAndBlankMetrics = true)
+    private double GetPhysicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false, bool ignoreVarUnselected = true, bool ignoreBlankMetrics = true)
     {
         double totalScore = 0.0;
         double maxScore = 0.0;
@@ -1229,9 +1232,18 @@ else
             foreach (var variable in category.FunctionalVariables)
             {
                 // If ignoreVarUnselectedAndBlank Metrics is true, skip variables that are not selected or have no metrics, otherwise include all metrics
-                @if (ignoreVarUnselectedAndBlankMetrics == true)
+                @if (ignoreVarUnselected == true)
                 {
-                    @if (variable.Metrics.Count == 0 || variable.IsSelected == false)
+                    @if (variable.IsSelected == false)
+                    {
+                        continue;
+                    }
+                }
+
+                // If ignoreVarUnselectedAndBlank Metrics is true, skip variables that are not selected or have no metrics, otherwise include all metrics
+                @if (ignoreBlankMetrics == true)
+                {
+                    @if (variable.Metrics.Count == 0)
                     {
                         continue;
                     }
@@ -1279,7 +1291,7 @@ else
         }
     }
 
-    private double GetChemicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false, bool ignoreVarUnselectedAndBlankMetrics = true)
+    private double GetChemicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false, bool ignoreVarUnselected = true, bool ignoreBlankMetrics = true)
     {
         double totalScore = 0.0;
         double maxScore = 0.0;
@@ -1291,9 +1303,18 @@ else
             foreach (var variable in category.FunctionalVariables)
             {
                 // If ignoreVarUnselectedAndBlank Metrics is true, skip variables that are not selected or have no metrics, otherwise include all metrics
-                @if (ignoreVarUnselectedAndBlankMetrics == true)
+                @if (ignoreVarUnselected == true)
                 {
-                    @if (variable.Metrics.Count == 0 || variable.IsSelected == false)
+                    @if (variable.IsSelected == false)
+                    {
+                        continue;
+                    }
+                }
+
+                // If ignoreVarUnselectedAndBlank Metrics is true, skip variables that are not selected or have no metrics, otherwise include all metrics
+                @if (ignoreBlankMetrics == true)
+                {
+                    @if (variable.Metrics.Count == 0)
                     {
                         continue;
                     }
@@ -1341,7 +1362,7 @@ else
         }
     }
 
-    private double GetBiologicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false, bool ignoreVarUnselectedAndBlankMetrics = true)
+    private double GetBiologicalSubIndex(bool Index = true, bool total = false, bool max = false, bool dCount = false, bool iCount = false, bool ignoreVarUnselected = true, bool ignoreBlankMetrics = true)
     {
         double totalScore = 0.0;
         double maxScore = 0.0;
@@ -1353,9 +1374,18 @@ else
             foreach (var variable in category.FunctionalVariables)
             {
                 // If ignoreVarUnselectedAndBlank Metrics is true, skip variables that are not selected or have no metrics, otherwise include all metrics
-                @if (ignoreVarUnselectedAndBlankMetrics == true)
+                @if (ignoreVarUnselected == true)
                 {
-                    @if (variable.Metrics.Count == 0 || variable.IsSelected == false)
+                    @if (variable.IsSelected == false)
+                    {
+                        continue;
+                    }
+                }
+
+                // If ignoreVarUnselectedAndBlank Metrics is true, skip variables that are not selected or have no metrics, otherwise include all metrics
+                @if (ignoreBlankMetrics == true)
+                {
+                    @if (variable.Metrics.Count == 0)
                     {
                         continue;
                     }
