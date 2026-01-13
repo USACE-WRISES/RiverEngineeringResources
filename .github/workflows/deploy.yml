@@ -10,24 +10,75 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: recursive
 
-      - uses: actions/setup-dotnet@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
 
-      - name: Publish Blazor WASM
-        run: dotnet publish RiverEngineeringResources/RiverEngineeringResources/RiverEngineeringResources.csproj -c Release -o publish
+      - name: Debug repo structure (temporary)
+        run: |
+          echo "PWD:"
+          pwd
+          echo ""
+          echo "Top-level:"
+          ls -la
+          echo ""
+          echo "All .csproj files:"
+          find . -name "*.csproj" -print
+          echo ""
+          echo "RiverEngineeringResources tree (if exists):"
+          ls -la RiverEngineeringResources || true
+          ls -la RiverEngineeringResources/RiverEngineeringResources || true
+
+      - name: Publish (auto-detect csproj)
+        shell: bash
+        run: |
+          CSPROJ="$(find . -name 'RiverEngineeringResources.csproj' -print -quit)"
+          if [ -z "$CSPROJ" ]; then
+            echo "ERROR: Could not find RiverEngineeringResources.csproj"
+            echo "Here are the csproj files I do see:"
+            find . -name "*.csproj" -print
+            exit 1
+          fi
+          echo "Publishing: $CSPROJ"
+          dotnet publish "$CSPROJ" -c Release -o publish
 
       - name: Fix base href for GitHub Pages
+        shell: bash
         run: |
           INDEX="publish/wwwroot/index.html"
+          if [ ! -f "$INDEX" ]; then
+            echo "ERROR: $INDEX not found. This usually means you published the wrong project (not the WASM app)."
+            echo "Contents of publish:"
+            ls -la publish || true
+            echo "Contents of publish/wwwroot:"
+            ls -la publish/wwwroot || true
+            exit 1
+          fi
+
+          # Handle both <base href="/" /> and <base href="/" />
           sed -i "s#<base href=\"/\" />#<base href=\"/${{ github.event.repository.name }}/\" />#g" "$INDEX"
           sed -i "s#<base href=\"/\"/>#<base href=\"/${{ github.event.repository.name }}/\"/>#g" "$INDEX"
+
+      - name: SPA 404 fallback (recommended for client-side routing)
+        shell: bash
+        run: |
+          # Simple SPA fallback: serve index.html for 404s
+          cp publish/wwwroot/index.html publish/wwwroot/404.html
 
       - name: Add .nojekyll
         run: touch publish/wwwroot/.nojekyll
