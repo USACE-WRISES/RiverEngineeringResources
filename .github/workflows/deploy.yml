@@ -21,7 +21,7 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Publish Blazor WASM
-        run: dotnet publish ./RiverEngineeringResources/RiverEngineerResources.csproj -c Release -o publish
+        run: dotnet publish RiverEngineeringResources/RiverEngineeringResources/RiverEngineeringResources.csproj -c Release -o publish
 
       - name: Fix base href for GitHub Pages
         run: |
