@@ -89,6 +89,7 @@ jobs:
           path: publish/wwwroot
 
   deploy:
+    timeout-minutes: 60   # default is 360, but orgs sometimes lower this
     runs-on: ubuntu-latest
     needs: build
     environment:
